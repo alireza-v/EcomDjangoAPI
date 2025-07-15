@@ -7,8 +7,3 @@ skip_gitignore= true
 exclude=["env", "migrations"]
 
 
-
-
-
-
-
