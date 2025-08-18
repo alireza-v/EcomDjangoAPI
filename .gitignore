@@ -8,6 +8,9 @@ __pycache__/
 
 Makefile
 front
+media
+static/product
+.vscode
 
 # Distribution / packaging
 .Python

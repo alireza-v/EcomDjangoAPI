@@ -4,6 +4,6 @@ skip= ["env", "migrations", "__pycache__", "node_modules"]
 skip_gitignore= true
 
 [tool.ruff]
-exclude=["env", "migrations"]
+exclude=["env", "migrations", "__pycache__"]
 
 

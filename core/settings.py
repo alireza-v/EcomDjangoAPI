@@ -11,12 +11,17 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
 from dotenv import load_dotenv
 
 load_dotenv()
+
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="drf_yasg.views")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,10 +34,13 @@ from drf_yasg.app_settings import swagger_settings
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG")
+DEBUG = os.getenv("DEBUG", "True") == "True"
 
 if DEBUG:
-    ALLOWED_HOSTS = ["*"]
+    ALLOWED_HOSTS = [
+        "localhost",
+        "127.0.0.1",
+    ]
 else:
     os.getenv("ALLOWED_HOSTS", "").split(",")
 
@@ -40,6 +48,10 @@ else:
 # Application definition
 
 INSTALLED_APPS = [
+    # django-admin-interface
+    "admin_interface",
+    "colorfield",
+    # ----------------------
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -48,14 +60,20 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # 3rd part
     "rest_framework",
-    "rest_framework.authtoken",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "djoser",
     "corsheaders",
     "drf_yasg",
+    "django_filters",
     # Apps
     "users",
     "product",
+    "cart",
 ]
+
+X_FRAME_OPTIONS = "SAMEORIGIN"
+SILENCED_SYSTEM_CHECKS = ["security.W019"]
 
 AUTH_USER_MODEL = "users.CustomUser"
 
@@ -67,28 +85,39 @@ swagger_settings.SECURITY_DEFINITIONS = {
     },
 }
 
+DOMAIN = os.getenv("DOMAIN", "localhost:9000")
+
 DJOSER = {
     "LOGIN_FIELD": "email",
     "SEND_ACTIVATION_EMAIL": True,
-    "ACTIVATION_URL": "api/auth/activate/{uid}/{token}/",
+    "ACTIVATION_URL": "api/users/activate/{uid}/{token}/",
     "USER_CREATE_PASSWORD_RETYPE": False,
-    "PASSWORD_RESET_CONFIRM_URL": "api/auth/password/confirm/{uid}/{token}/",
+    "PASSWORD_RESET_CONFIRM_URL": "auth/users/reset_password_confirm/{uid}/{token}/",
     "SEND_CONFIRMATION_EMAIL": True,
+    "SERIALIZERS": {
+        "user_create": "users.serializers.CustomUserCreateSerializer",
+    },
+    "TOKEN_MODEL": None,
 }
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.AnonRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "user": "500/min",
-        "anon": "50/min",
+        "user": "50/min",
+        "anon": "20/min",
     },
     "EXCEPTION_HANDLER": "users.exceptions.custom_exception_handler",
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
 if DEBUG:
@@ -96,8 +125,6 @@ if DEBUG:
 else:
     CORS_ALLOWED_ORIGINS = os.getev("CORS_ALLOWED_ORIGINS").split(",")
 
-
-DOMAIN = os.getenv("DOMAIN")
 
 SITE_NAME = os.getenv("SITE_NAME")
 
@@ -183,6 +210,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -199,3 +228,9 @@ EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+
+
+SWAGGER_USE_COMPAT_RENDERERS = False
+
+
+LOGIN_URL = "/auth/token/login/"

@@ -4,6 +4,7 @@ from drf_yasg.generators import OpenAPISchemaGenerator
 class CustomSchemaGenerator(OpenAPISchemaGenerator):
     def get_endpoints(self, request):
         endpoints = super().get_endpoints(request)
+
         filtered_endpoints = {}
 
         # Allowed specific Djoser auth paths and methods
@@ -24,12 +25,9 @@ class CustomSchemaGenerator(OpenAPISchemaGenerator):
                     ]
                     if filtered_methods:
                         filtered_endpoints[path] = (view_cls, filtered_methods)
-                # else skip all other /auth/ paths (exclude them)
+
             else:
                 # Include all non-auth endpoints unfiltered
                 filtered_endpoints[path] = (view_cls, methods)
 
         return filtered_endpoints
-
-
-# del
