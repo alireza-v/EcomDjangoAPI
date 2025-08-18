@@ -14,6 +14,8 @@ from .serializers import CartItemSerializer
 
 
 class CartCreateAPIView(generics.CreateAPIView):
+    """Create cart items"""
+
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = CartItemSerializer
 
@@ -36,6 +38,8 @@ class CartCreateAPIView(generics.CreateAPIView):
 
 
 class CartDropAPIView(APIView):
+    """Clear user cart items all at once"""
+
     permission_classes = [permissions.IsAuthenticated]
 
     @swagger_auto_schema(
@@ -69,6 +73,8 @@ class CartDropAPIView(APIView):
 
 
 class CartListAPIView(generics.ListAPIView):
+    """Display user related cart items"""
+
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = CartItemSerializer
     queryset = CartItem.objects.all()
@@ -87,6 +93,8 @@ class CartListAPIView(generics.ListAPIView):
 
 
 class CheckoutAPIView(APIView):
+    """Start checkout process"""
+
     permission_classes = [permissions.IsAuthenticated]
 
     @swagger_auto_schema(

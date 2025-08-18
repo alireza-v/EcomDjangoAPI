@@ -113,6 +113,10 @@ class ProductListAPIView(generics.ListAPIView):
 
 
 class ProductDetailAPIView(generics.RetrieveAPIView):
+    """
+    Obtain product details using slug
+    """
+
     queryset = Product.objects.all()
     serializer_class = serializers.ProductSerializer
     lookup_field = "slug"
@@ -171,6 +175,10 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
 
 
 class FeedbackCreateAPIView(generics.CreateAPIView):
+    """
+    Create feedback by the provided product ID
+    """
+
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = serializers.FeedbackSerializer
 
@@ -193,6 +201,10 @@ class FeedbackCreateAPIView(generics.CreateAPIView):
 
 
 class LikeToggleCreateAPIView(APIView):
+    """
+    Toggle products likes if authenticated
+    """
+
     permission_classes = [permissions.IsAuthenticated]
 
     @swagger_auto_schema(

@@ -22,6 +22,7 @@ User = get_user_model()
 )
 @api_view(["GET"])
 def activate_user_view(request, uid, token):
+    """Activate user account by the given uid/token"""
     try:
         uid = urlsafe_base64_decode(uid).decode()
         user = User.objects.get(pk=uid)

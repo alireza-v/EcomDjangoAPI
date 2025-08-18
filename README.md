@@ -4,7 +4,11 @@ A full-featured eCommerce backend built with [Django](https://docs.djangoproject
 This project provides APIs for product browsing, cart management, checkout, and user authentication — everything needed to power a modern eCommerce platform.
 
 ---
+### 🌐 Localization Note
+The Django model `verbose_name` fields and admin interface labels are written in **Persian (Farsi)** to provide a localized admin experience.
+If you prefer English labels, you can update the `verbose_name` in your models or use Django’s built-in [translation framework](https://docs.djangoproject.com/en/stable/topics/i18n/).
 
+---
 ### Table of Contents
 - ⚙️ [Features](#features)
 - 🚀 [Installation](#installation)

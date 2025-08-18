@@ -48,10 +48,9 @@ else:
 # Application definition
 
 INSTALLED_APPS = [
-    # django-admin-interface
+    # django admin-interface
     "admin_interface",
     "colorfield",
-    # ----------------------
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -66,7 +65,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_yasg",
     "django_filters",
-    # Apps
+    # internal apps
     "users",
     "product",
     "cart",

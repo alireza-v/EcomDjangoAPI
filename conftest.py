@@ -61,7 +61,7 @@ def sample_auth_token(
         "/auth/token/login/",
         {
             "email": user.email,
-            "password": "123!@#QWE",
+            "password": RAW_PASSWORD,
         },
     )
     return response.data
@@ -147,7 +147,11 @@ def sample_feedbacks(db, sample_active_user, sample_products):
 
 
 @pytest.fixture
-def sample_likes(db, sample_active_user, sample_products):
+def sample_likes(
+    db,
+    sample_active_user,
+    sample_products,
+):
     user = sample_active_user
     _, _, product = sample_products
 
@@ -158,7 +162,11 @@ def sample_likes(db, sample_active_user, sample_products):
 
 
 @pytest.fixture
-def sample_carts(db, sample_active_user, sample_products):
+def sample_carts(
+    db,
+    sample_active_user,
+    sample_products,
+):
     _, _, product = sample_products
     user = sample_active_user
 
@@ -170,7 +178,10 @@ def sample_carts(db, sample_active_user, sample_products):
 
 
 @pytest.fixture
-def sample_order(db, sample_active_user):
+def sample_order(
+    db,
+    sample_active_user,
+):
     user = sample_active_user
 
     return Order.objects.create(
@@ -179,7 +190,11 @@ def sample_order(db, sample_active_user):
 
 
 @pytest.fixture
-def sample_order_item(db, sample_order, sample_products):
+def sample_order_item(
+    db,
+    sample_order,
+    sample_products,
+):
     order = sample_order
     _, _, product = sample_products
 

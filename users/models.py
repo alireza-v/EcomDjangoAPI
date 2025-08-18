@@ -51,6 +51,10 @@ class TimestampModel(models.Model):
 
 
 class CustomUser(TimestampModel, AbstractUser):
+    """
+    Custom user model with the mail as the authenticator
+    """
+
     username = models.CharField(max_length=50, null=True, blank=True)
     email = models.EmailField(unique=True)
 
