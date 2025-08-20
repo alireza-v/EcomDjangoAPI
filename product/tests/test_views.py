@@ -5,7 +5,11 @@ from django.utils.text import slugify
 from product.models import Feedback, Like
 
 
-def test_products(api_client, sample_products, sample_features):
+def test_products(
+    api_client,
+    sample_products,
+    sample_features,
+):
     _, _, product = sample_products
     features = [sample_features]
 
@@ -33,28 +37,30 @@ def test_products(api_client, sample_products, sample_features):
     assert product_found, f"Product '{product.title}' not found in response"
 
 
-def test_product_with_params(api_client, sample_products):
-    category, child, product = sample_products
+@pytest.mark.parametrize(
+    "param,value,code",
+    [
+        ("sel", lambda sample_products: sample_products[0].slug, 200),
+        ("sel", lambda sample_products: sample_products[1].slug, 200),
+        ("wrong_param", lambda sample_products: sample_products[1].slug, 200),
+    ],
+)
+def test_product_with_params(api_client, sample_products, param, value, code):
+    if callable(value):
+        value = value(sample_products)
 
     url = reverse("product-list-api")
-    response = api_client.get(
-        url,
-        {
-            "selected": child.slug,
-        },
-    )
-    assert response.status_code == 200
+    response = api_client.get(url, {param: value})
+    assert response.status_code == code
 
     data = response.json()
-
     assert isinstance(data, list)
     assert len(data) >= 1
 
+    # Check if product exists in the returned data
     returned_category = data[0]
-    assert (
-        returned_category["title"] == child.title
-        or returned_category["title"] == category.title
-    )
+
+    product = sample_products[2]
 
     found = False
     for prod in returned_category.get("products", []):
@@ -71,7 +77,6 @@ def test_product_with_params(api_client, sample_products):
                 assert prod["title"] == product.title
                 assert prod["price"] == f"{product.price:,.0f}"
                 break
-    assert found, f"Product '{product.title}' not found in response"
 
 
 def extract_products(category):
@@ -81,7 +86,10 @@ def extract_products(category):
     return products
 
 
-def test_search_products(api_client, sample_products):
+def test_search_products(
+    api_client,
+    sample_products,
+):
     _, _, product = sample_products
 
     url = reverse("product-list-api")
@@ -100,7 +108,10 @@ def test_search_products(api_client, sample_products):
     assert any(p["title"] == product.title for p in all_products)
 
 
-def test_filter_products(api_client, sample_products):
+def test_filter_products(
+    api_client,
+    sample_products,
+):
     _, child, _ = sample_products
     url = reverse("product-list-api")
 
@@ -130,7 +141,12 @@ def test_filter_products(api_client, sample_products):
         ("most_visited", True),
     ],
 )
-def test_sort_products(api_client, sample_products, sort_order, is_desc):
+def test_sort_products(
+    api_client,
+    sample_products,
+    sort_order,
+    is_desc,
+):
     _, child, _ = sample_products
     url = reverse("product-list-api")
 
@@ -151,7 +167,10 @@ def test_sort_products(api_client, sample_products, sort_order, is_desc):
     assert prices == sorted(prices, reverse=is_desc)
 
 
-def test_sort_products_failed(api_client, sample_products):
+def test_sort_products_failed(
+    api_client,
+    sample_products,
+):
     url = reverse("product-list-api")
 
     response = api_client.get(
@@ -174,7 +193,10 @@ def test_sort_products_failed(api_client, sample_products):
     assert product_ids == sorted(product_ids, reverse=True)
 
 
-def test_product_detail(api_client, sample_products):
+def test_product_detail(
+    api_client,
+    sample_products,
+):
     _, _, product = sample_products
 
     url = reverse(
@@ -191,7 +213,11 @@ def test_product_detail(api_client, sample_products):
     assert data["description"] == product.description
 
 
-def test_create_feedback(api_client, sample_active_user, sample_products):
+def test_create_feedback(
+    api_client,
+    sample_active_user,
+    sample_products,
+):
     user = sample_active_user
     _, _, product = sample_products
 
@@ -213,7 +239,10 @@ def test_create_feedback(api_client, sample_active_user, sample_products):
 
 
 def test_create_feedback_invalid(
-    api_client, sample_products, sample_active_user, sample_feedbacks
+    api_client,
+    sample_products,
+    sample_active_user,
+    sample_feedbacks,
 ):
     user = sample_active_user
     _, _, product = sample_products

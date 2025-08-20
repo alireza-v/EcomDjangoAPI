@@ -6,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, permissions, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -16,20 +17,28 @@ from .serializers import LikeSerializer
 
 
 def custom_404_view(request, exception):
+    """404 Not Found page"""
     return JsonResponse(
         {"detail": "صفحه مورد نظر یافت نشد."}, status=status.HTTP_404_NOT_FOUND
     )
 
 
+class ProductPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
 class ProductListAPIView(generics.ListAPIView):
     """
-    Retrieve a list of products.
+    Retrieve lists of products
 
-    - If a product slug is provided, returns products under that category.
-    - Supports filtering and sorting via query parameters.
+    - Returns products under its category if the product slug is provided
+    - Supports filtering and sorting via query parameters
     """
 
     serializer_class = serializers.CategorySerializer
+    pagination_class = ProductPagination
 
     @swagger_auto_schema(
         manual_parameters=[
@@ -72,21 +81,24 @@ class ProductListAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         """
-        Fetch subcategories/products using the prefetched PK.
+        Fetch subcategories/products using the prefetched PK
         """
+        empty_qs = Category.objects.none()
+        params = self.request.query_params
 
-        selected_slug = self.request.query_params.get("selected")
-        if selected_slug:
-            category = get_object_or_404(
-                Category,
-                slug=selected_slug,
-            )
-            return Category.objects.filter(
-                pk=category.pk,
-            ).prefetch_related(
-                "subcategories__products",
-                "products",
-            )
+        if "sel" in params:
+            selected = params.get("sel")
+            if not selected:
+                return empty_qs
+
+            category = Category.objects.filter(slug=selected).first()
+            if category:
+                return Category.objects.filter(pk=category.pk).prefetch_related(
+                    "subcategories__products",
+                    "products",
+                )
+            else:
+                return empty_qs
 
         # return most popular ones
         return (
@@ -100,6 +112,9 @@ class ProductListAPIView(generics.ListAPIView):
         )
 
     def get_serializer_context(self):
+        """
+        pass the required params to the serializer
+        """
         context = super().get_serializer_context()
 
         params = self.request.query_params
@@ -114,7 +129,7 @@ class ProductListAPIView(generics.ListAPIView):
 
 class ProductDetailAPIView(generics.RetrieveAPIView):
     """
-    Obtain product details using slug
+    Fetch product details using slug(str)
     """
 
     queryset = Product.objects.all()
@@ -139,7 +154,6 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
     def retrieve(self, request, *args, **kwargs):
         try:
             with transaction.atomic():
-                # Lock the row until transaction ends
                 instance = (
                     self.get_queryset()
                     .select_for_update()
@@ -161,14 +175,14 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
 
         except Product.DoesNotExist:
             return Response(
-                {"detail": "Product not found."},
+                {"detail": "Product not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         except IntegrityError:
             return Response(
                 {
-                    "detail": "Transaction rolled back due to error.",
+                    "detail": "Transaction rolled back due to error",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -202,7 +216,7 @@ class FeedbackCreateAPIView(generics.CreateAPIView):
 
 class LikeToggleCreateAPIView(APIView):
     """
-    Toggle products likes if authenticated
+    Toggle products likes
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -235,7 +249,7 @@ class LikeToggleCreateAPIView(APIView):
 
         if not product_id:
             return Response(
-                {"detail": "Product ID required."}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": "Product ID required"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         product = get_object_or_404(

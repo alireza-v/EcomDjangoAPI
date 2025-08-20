@@ -20,7 +20,7 @@ fake = Faker("fa_IR")
 
 
 class Command(BaseCommand):
-    help = "پر کردن پایگاه داده با دسته‌بندی‌ها، محصولات، ویژگی‌ها و بازخوردها."
+    help = "Seed the database with random data for categories, products, and related features."
 
     features_list = [
         ("برند", ["اپل", "سامسونگ", "دل", "اچ‌پی", "لنوو"]),
@@ -31,7 +31,7 @@ class Command(BaseCommand):
     ]
 
     def handle(self, *args, **kwargs):
-        self.stdout.write(self.style.WARNING("در حال وارد کردن داده‌ها..."))
+        self.stdout.write(self.style.WARNING("seed data..."))
 
         Category.objects.all().delete()
 
@@ -57,26 +57,22 @@ class Command(BaseCommand):
             user.is_staff = True
             user.save()
 
-        # اضافه کردن ویژگی‌ها
         for name, _ in self.features_list:
             FeatureName.objects.get_or_create(name=name)
 
         features_dict = {feature.name: feature for feature in FeatureName.objects.all()}
 
-        # ایجاد محصولات
         for subcat in subcategories:
-            for i in range(5):
+            for i in range(10):
                 product = Product.objects.create(
                     title=f"{subcat.title} مدل {i + 1}",
                     category=subcat,
-                    price=random.randint(200, 3000)
-                    * 100,  # به تومان یا دلار قابل تغییر است
+                    price=random.randint(200, 3000) * 100,
                     description=fake.text(max_nb_chars=200),
                     stock=random.randint(0, 10),
                     visit_count=random.randint(1, 100),
                 )
 
-                # انتخاب ویژگی‌های تصادفی
                 selected_features = random.sample(
                     self.features_list,
                     random.randint(2, 4),
@@ -89,7 +85,6 @@ class Command(BaseCommand):
                         value=value,
                     )
 
-                # تصویر اصلی
                 main_image_path = os.path.join(
                     "static", f"product/images/{subcat.title}/image_{i + 1}.jpg"
                 )
@@ -103,7 +98,6 @@ class Command(BaseCommand):
 
                 product.save()
 
-                # تصاویر گالری
                 for j in range(1, 4):
                     alt_image_filename = f"alt_image_{j}.jpg"
                     alt_image_path = os.path.join(
@@ -119,7 +113,6 @@ class Command(BaseCommand):
                                 ),
                             )
 
-                # بازخوردها
                 Feedback.objects.create(
                     user=user,
                     product=product,
@@ -129,10 +122,9 @@ class Command(BaseCommand):
                             "از خریدم راضی هستم.",
                             "میتوانست بهتر باشد.",
                             "عملکرد فوق‌العاده!",
-                            "ارزش خرید ندارد.",
                         ]
                     ),
-                    rating=random.randint(1, 5),
+                    rating=random.randint(3, 5),
                 )
 
-        self.stdout.write(self.style.SUCCESS("✅ داده‌ها با موفقیت وارد شدند!"))
+        self.stdout.write(self.style.SUCCESS("seed data success!"))

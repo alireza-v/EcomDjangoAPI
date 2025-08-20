@@ -1,11 +1,12 @@
 from rest_framework import serializers
+from rest_framework.serializers import ModelSerializer
 
 from product.models import Product
 
 from .models import CartItem
 
 
-class CartItemSerializer(serializers.ModelSerializer):
+class CartItemSerializer(ModelSerializer):
     action = serializers.ChoiceField(
         choices=[
             "add",

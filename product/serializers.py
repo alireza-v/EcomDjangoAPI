@@ -1,31 +1,39 @@
 from django.db.models import Q
 from rest_framework import serializers
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.serializers import ModelSerializer
 
-from product.models import (
-    Category,
-    FeatureValue,
-    Feedback,
-    Like,
-    Product,
-    ProductImage,
-)
+from product.models import *
 
 
-class FeatureValueSerializer(serializers.ModelSerializer):
+class BaseSerializer(ModelSerializer):
+    """
+    Base serializer that removes fields with null values from the API response
+    """
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        return {k: v for k, v in rep.items() if v is not None}
+
+
+class FeatureValueSerializer(ModelSerializer):
     feature = serializers.StringRelatedField()
 
     class Meta:
         model = FeatureValue
-        fields = ["feature", "value"]
+        fields = [
+            "feature",
+            "value",
+        ]
 
 
-class ProductImageSerializer(serializers.ModelSerializer):
+class ProductImageSerializer(ModelSerializer):
     class Meta:
         model = ProductImage
         fields = ["image"]
 
 
-class ProductSerializer(serializers.ModelSerializer):
+class ProductSerializer(BaseSerializer):
     price = serializers.ReadOnlyField(source="price_formatter")
     parent = serializers.StringRelatedField(source="category")
     features = FeatureValueSerializer(
@@ -54,7 +62,13 @@ class ProductSerializer(serializers.ModelSerializer):
         ]
 
 
-class CategorySerializer(serializers.ModelSerializer):
+class ProductPagination(PageNumberPagination):
+    page_size = 5
+    page_size_query_param = "products_per_page"
+    max_page_size = 20
+
+
+class CategorySerializer(ModelSerializer):
     subcategories = serializers.SerializerMethodField()
     products = serializers.SerializerMethodField()
 
@@ -113,7 +127,7 @@ class CategorySerializer(serializers.ModelSerializer):
         if max_price:
             product_qs = product_qs.filter(price__lte=max_price)
 
-        # if no filter results found, return empty list
+        # return empty list if no results found
         if (min_price or max_price) and not product_qs.exists():
             return []
 
@@ -129,26 +143,45 @@ class CategorySerializer(serializers.ModelSerializer):
             # sorting fallback
             product_qs = product_qs.order_by("-visit_count")
 
-        return ProductSerializer(
-            product_qs,
+        paginator = ProductPagination()
+        paginated_products = paginator.paginate_queryset(
+            product_qs, self.context["request"]
+        )
+        serialized_products = ProductSerializer(
+            paginated_products,
             many=True,
-            context=context,
-        ).data
+            context=self.context,
+        )
+
+        return {
+            "count": product_qs.count(),
+            "next": paginator.get_next_link(),
+            "previous": paginator.get_previous_link(),
+            "results": serialized_products.data,
+        }
 
 
-class ProductFeatureSerializer(serializers.ModelSerializer):
+class ProductFeatureSerializer(ModelSerializer):
     class Meta:
         model = FeatureValue
-        fields = ["product", "feature", "value"]
+        fields = [
+            "product",
+            "feature",
+            "value",
+        ]
 
 
-class CategoryBreadcrumbSerializer(serializers.ModelSerializer):
+class CategoryBreadcrumbSerializer(ModelSerializer):
     class Meta:
         model = Category
-        fields = ["id", "title", "slug"]
+        fields = [
+            "id",
+            "title",
+            "slug",
+        ]
 
 
-class FeedbackSerializer(serializers.ModelSerializer):
+class FeedbackSerializer(ModelSerializer):
     user = serializers.SerializerMethodField()
     product = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),
@@ -156,9 +189,9 @@ class FeedbackSerializer(serializers.ModelSerializer):
     )
     product_value = serializers.SerializerMethodField()
     rating = serializers.IntegerField(
+        help_text="Rating from 1 to 5 stars",
         min_value=1,
         max_value=5,
-        help_text="Rating from 1 to 5 stars",
     )
 
     class Meta:
@@ -199,7 +232,7 @@ class FeedbackSerializer(serializers.ModelSerializer):
         return data
 
 
-class LikeSerializer(serializers.ModelSerializer):
+class LikeSerializer(ModelSerializer):
     user = serializers.StringRelatedField()
     product = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),

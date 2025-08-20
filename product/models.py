@@ -51,7 +51,10 @@ class Category(TimestampModel):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.title, allow_unicode=True)
+            self.slug = slugify(
+                self.title,
+                allow_unicode=True,
+            )
         super().save(*args, **kwargs)
 
 
@@ -104,7 +107,11 @@ class Product(TimestampModel):
         verbose_name=_("موجودی"),
         default=0,
     )
-    visit_count = models.PositiveIntegerField(_("بازدید ها"), default=0, null=True)
+    visit_count = models.PositiveIntegerField(
+        _("بازدید ها"),
+        default=0,
+        null=True,
+    )
     slug = models.SlugField(
         _("شناسه"),
         max_length=255,
@@ -122,11 +129,14 @@ class Product(TimestampModel):
     def price_formatter(self):
         if self.price is not None:
             return f"{self.price:,.0f}"
-        return ""
+        return None
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.title, allow_unicode=True)
+            self.slug = slugify(
+                self.title,
+                allow_unicode=True,
+            )
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -156,9 +166,13 @@ class FeatureValue(TimestampModel):
         verbose_name_plural = "مقادیر ویژگی های محصول"
         constraints = [
             models.UniqueConstraint(
-                fields=["product", "feature", "value"],
+                fields=[
+                    "product",
+                    "feature",
+                    "value",
+                ],
                 name="unique_product_feature_value",
-            )
+            ),
         ]
 
     def __str__(self):
@@ -197,7 +211,10 @@ class Feedback(TimestampModel):
         related_name="feedbacks",
     )
     description = models.TextField(_("توضیحات"))
-    rating = models.PositiveSmallIntegerField(_("امتیاز"), null=True)
+    rating = models.PositiveSmallIntegerField(
+        _("امتیاز"),
+        null=True,
+    )
 
     class Meta:
         verbose_name = "بازخورد"
@@ -214,9 +231,15 @@ class Feedback(TimestampModel):
 
 
 class Like(TimestampModel):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="user_likes")
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="user_likes",
+    )
     product = models.ForeignKey(
-        Product, on_delete=models.CASCADE, related_name="product_likes"
+        Product,
+        on_delete=models.CASCADE,
+        related_name="product_likes",
     )
 
     class Meta:

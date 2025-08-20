@@ -16,6 +16,7 @@ services:
       - "9000:9000"
     depends_on:
       - db
+      - redis
 
   db:
     image: postgres:14
@@ -27,6 +28,36 @@ services:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+
+  redis:
+    image: redis:7
+    container_name: redis_server
+    ports:
+      - "6379:6379"
+
+  celery_worker:
+    build: .
+    command: celery -A core worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+      - web
+    env_file:
+      - .env
+
+  celery_beat:
+    build: .
+    command: celery -A core beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+      - web
+    env_file:
+      - .env
 
 volumes:
   pgdata:
