@@ -1,13 +1,11 @@
-from decimal import Decimal
-
-from cart.models import (
-    CartItem,
-    Order,
-    OrderItem,
-)
+from cart.models import *
 
 
-def test_cart_creation(sample_carts, sample_active_user, sample_products):
+def test_cart_creation(
+    sample_carts,
+    sample_active_user,
+    sample_products,
+):
     cart = sample_carts
     user = sample_active_user
     _, _, product = sample_products
@@ -16,7 +14,10 @@ def test_cart_creation(sample_carts, sample_active_user, sample_products):
     assert CartItem.objects.filter(user=user, product=product).exists()
 
 
-def test_order_creation(sample_active_user, sample_order):
+def test_order_creation(
+    sample_active_user,
+    sample_order,
+):
     user = sample_active_user
     order = sample_order
 
@@ -26,7 +27,11 @@ def test_order_creation(sample_active_user, sample_order):
     assert str(order) == f"Order by {user} - Status: {order.status.capitalize()}"
 
 
-def test_order_item_creation(sample_products, sample_order_item, sample_active_user):
+def test_order_item_creation(
+    sample_products,
+    sample_order_item,
+    sample_active_user,
+):
     _, _, product = sample_products
     order_item = sample_order_item
     user = sample_active_user

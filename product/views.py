@@ -1,77 +1,88 @@
 from django.db import IntegrityError, transaction
-from django.db.models import F
-from django.http import JsonResponse
+from django.db.models import Avg, F
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import generics, permissions, status
-from rest_framework.pagination import PageNumberPagination
+from rest_framework import filters, generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from product import serializers
-
-from .models import Category, Like, Product
-from .serializers import LikeSerializer
-
-
-def custom_404_view(request, exception):
-    """404 Not Found page"""
-    return JsonResponse(
-        {"detail": "صفحه مورد نظر یافت نشد."}, status=status.HTTP_404_NOT_FOUND
-    )
-
-
-class ProductPagination(PageNumberPagination):
-    page_size = 10
-    page_size_query_param = "page_size"
-    max_page_size = 50
+from product.filters import ProductFilter
+from product.models import Category, Like, Product
+from product.pagination import ProductPagination
+from product.serializers import (
+    CategorySerializer,
+    FeedbackSerializer,
+    LikeSerializer,
+    ProductSerializer,
+)
 
 
 class ProductListAPIView(generics.ListAPIView):
     """
-    Retrieve lists of products
-
-    - Returns products under its category if the product slug is provided
-    - Supports filtering and sorting via query parameters
+    Fetched categories using slug
+    Products filtered by max_price | min_price
+    Paginated lists of products
+    Products sorted by price | visit_count | created_at
     """
 
-    serializer_class = serializers.CategorySerializer
+    permission_classes = [permissions.AllowAny]
+    serializer_class = ProductSerializer
     pagination_class = ProductPagination
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.OrderingFilter,
+    ]
+    filterset_class = ProductFilter
+    ordering_fields = [
+        "price",
+        "visit_count",
+        "created_at",
+    ]
+
+    def get_queryset(self):
+        """
+        Return products by category slug passed as query param:
+        ?category=<str:slug>
+        """
+        qs = Product.objects.annotate(avg_rating=Avg("feedbacks__rating"))
+        category_slug = self.request.query_params.get("category")
+
+        if category_slug:
+            qs = qs.filter(category__slug=category_slug)
+        return qs
 
     @swagger_auto_schema(
         manual_parameters=[
             openapi.Parameter(
-                "search",
-                openapi.IN_QUERY,
-                description="Search products",
+                name="category",
+                in_=openapi.IN_QUERY,
                 type=openapi.TYPE_STRING,
+                description="Category info by given slug",
+                required=False,
             ),
             openapi.Parameter(
-                "selected",
-                openapi.IN_QUERY,
-                description="Slug of the selected category",
-                type=openapi.TYPE_STRING,
-            ),
-            openapi.Parameter(
-                "sorted",
-                openapi.IN_QUERY,
-                description="Sort order: 'price_asc', 'price_desc', or default (visit count desc)",
-                type=openapi.TYPE_STRING,
-                enum=["price_asc", "price_desc"],
-            ),
-            openapi.Parameter(
-                "min_price",
-                openapi.IN_QUERY,
-                description="Minimum price filter",
+                name="max_price",
+                in_=openapi.IN_QUERY,
                 type=openapi.TYPE_NUMBER,
+                description="Filter products by max_price",
+                required=False,
             ),
             openapi.Parameter(
-                "max_price",
-                openapi.IN_QUERY,
-                description="Maximum price filter",
+                name="min_price",
+                in_=openapi.IN_QUERY,
                 type=openapi.TYPE_NUMBER,
+                description="Filter products by min_price",
+                required=False,
+            ),
+            openapi.Parameter(
+                name="ordering",
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                description="Sorted by price | visit_count | created_at",
+                required=False,
             ),
         ],
         tags=["Product"],
@@ -79,67 +90,46 @@ class ProductListAPIView(generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
+
+class CategoryListAPIView(generics.ListAPIView):
+    """
+    Return list of top-level categories (parent=null) with prefetching of subcategories and products
+    """
+
+    permission_classes = [permissions.AllowAny]
+    serializer_class = CategorySerializer
+
     def get_queryset(self):
-        """
-        Fetch subcategories/products using the prefetched PK
-        """
-        empty_qs = Category.objects.none()
-        params = self.request.query_params
-
-        if "sel" in params:
-            selected = params.get("sel")
-            if not selected:
-                return empty_qs
-
-            category = Category.objects.filter(slug=selected).first()
-            if category:
-                return Category.objects.filter(pk=category.pk).prefetch_related(
-                    "subcategories__products",
-                    "products",
-                )
-            else:
-                return empty_qs
-
-        # return most popular ones
-        return (
-            Category.objects.filter(
-                parent__isnull=True,
-            )
-            .prefetch_related(
-                "subcategories__products",
-            )
-            .order_by("-visit_count")
+        return Category.objects.filter(parent__isnull=True).prefetch_related(
+            "subcategories__products",
         )
 
-    def get_serializer_context(self):
-        """
-        pass the required params to the serializer
-        """
-        context = super().get_serializer_context()
-
-        params = self.request.query_params
-
-        context["search"] = params.get("search")
-        context["sorted"] = params.get("sorted")
-        context["min_price"] = params.get("min_price")
-        context["max_price"] = params.get("max_price")
-
-        return context
+    @swagger_auto_schema(
+        operation_summary="Category list",
+        operation_description="Retrieve top-level categories along with subcategories and products",
+        responses={
+            200: CategorySerializer(many=True),
+        },
+        tags=["Product"],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
 
 
 class ProductDetailAPIView(generics.RetrieveAPIView):
     """
-    Fetch product details using slug(str)
+    Retrieve product details by slug and increment visit counts
     """
 
+    permission_classes = [permissions.AllowAny]
     queryset = Product.objects.all()
-    serializer_class = serializers.ProductSerializer
+    serializer_class = ProductSerializer
     lookup_field = "slug"
     lookup_url_kwarg = "slug"
 
     @swagger_auto_schema(
-        operation_summary="Product detail",
-        operation_description="Product details using the slug",
+        operation_summary="Product Detail",
+        operation_description="Retrieve product details using the slug. Visit count incremented atomically",
         manual_parameters=[
             openapi.Parameter(
                 name="slug",
@@ -149,29 +139,32 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
                 required=True,
             ),
         ],
+        responses={
+            200: ProductSerializer,
+            404: openapi.Response(description="Product not found"),
+            400: openapi.Response(
+                description="Transaction rolled back due to an error"
+            ),
+        },
         tags=["Product"],
     )
     def retrieve(self, request, *args, **kwargs):
+        slug = kwargs.get("slug")
         try:
             with transaction.atomic():
                 instance = (
                     self.get_queryset()
                     .select_for_update()
                     .get(
-                        slug=kwargs["slug"],
+                        slug=slug,
                     )
                 )
                 instance.visit_count = F("visit_count") + 1
-                instance.save(
-                    update_fields=["visit_count"],
-                )
+                instance.save(update_fields=["visit_count"])
                 instance.refresh_from_db()
 
             serializer = self.get_serializer(instance)
-            return Response(
-                serializer.data,
-                status=status.HTTP_200_OK,
-            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Product.DoesNotExist:
             return Response(
@@ -181,29 +174,25 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
 
         except IntegrityError:
             return Response(
-                {
-                    "detail": "Transaction rolled back due to error",
-                },
+                {"detail": "Transaction rolled back due to an error"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
 
 class FeedbackCreateAPIView(generics.CreateAPIView):
     """
-    Create feedback by the provided product ID
+    Create feedbacks on selected product using product id
     """
 
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = serializers.FeedbackSerializer
+    serializer_class = FeedbackSerializer
 
     @swagger_auto_schema(
-        operation_summary="Create feedback",
-        operation_description="Authenticated users can submit feedback using the product ID.",
-        request_body=serializers.FeedbackSerializer,
+        operation_summary="Create Feedback",
+        operation_description="Submit feedback for a product using its ID.",
+        request_body=FeedbackSerializer,
         responses={
-            201: serializers.FeedbackSerializer(many=True),
-            400: "Bad Request",
-            401: "Authentication credentials were not provided.",
+            201: FeedbackSerializer,
+            400: "Bad request",
         },
         tags=["Feedback"],
     )
@@ -216,10 +205,8 @@ class FeedbackCreateAPIView(generics.CreateAPIView):
 
 class LikeToggleCreateAPIView(APIView):
     """
-    Toggle products likes
+    Like & Unlike a product
     """
-
-    permission_classes = [permissions.IsAuthenticated]
 
     @swagger_auto_schema(
         operation_id="Toggle likes",

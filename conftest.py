@@ -1,18 +1,17 @@
+"""
+The centralized configuration file for pytest. It is used to define fixtures, hooks, and shared test setup that can be reused across multiple test modules in the project.
+"""
+
 import random
 
 import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.urls import reverse
 from faker import Faker
 from rest_framework.test import APIClient
 
-from cart.models import (
-    CartItem,
-    Order,
-    OrderItem,
-)
+from cart.models import CartItem, Order, OrderItem
 from product.models import (
     Category,
     FeatureName,
@@ -35,6 +34,9 @@ def api_client(db):
 
 @pytest.fixture(autouse=True, scope="session")
 def disable_throttling():
+    """
+    Disable throttling during tests
+    """
     settings.REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []
 
 
@@ -46,25 +48,6 @@ def sample_active_user(db):
         password=RAW_PASSWORD,
         is_active=True,
     )
-
-
-@pytest.fixture
-def sample_auth_token(
-    db,
-    sample_active_user,
-    api_client,
-):
-    """Return token as auth_token"""
-    user = sample_active_user
-
-    response = api_client.post(
-        "/auth/token/login/",
-        {
-            "email": user.email,
-            "password": RAW_PASSWORD,
-        },
-    )
-    return response.data
 
 
 @pytest.fixture
@@ -96,7 +79,11 @@ def sample_products(db):
         stock=random.randint(1, 10),
         visit_count=random.randint(0, 50),
     )
-    return parent, child, product
+    return (
+        parent,
+        child,
+        product,
+    )
 
 
 @pytest.fixture
@@ -107,7 +94,11 @@ def sample_feature_name(db):
 
 
 @pytest.fixture
-def sample_features(db, sample_products, sample_feature_name):
+def sample_features(
+    db,
+    sample_products,
+    sample_feature_name,
+):
     _, _, product = sample_products
     feature_name = sample_feature_name
 
@@ -122,6 +113,7 @@ def sample_features(db, sample_products, sample_feature_name):
 @pytest.fixture
 def sample_images(db, sample_products):
     _, _, product = sample_products
+
     image_file = SimpleUploadedFile(
         name="test_image.jpg",
         content=b"\x47\x49\x46\x38\x39\x61",
@@ -134,7 +126,11 @@ def sample_images(db, sample_products):
 
 
 @pytest.fixture
-def sample_feedbacks(db, sample_active_user, sample_products):
+def sample_feedbacks(
+    db,
+    sample_active_user,
+    sample_products,
+):
     _, _, product = sample_products
 
     feedback = Feedback.objects.create(

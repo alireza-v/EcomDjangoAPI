@@ -1,6 +1,7 @@
+import random
+
 import pytest
 from django.urls import reverse
-from django.utils.text import slugify
 
 from product.models import Feedback, Like
 
@@ -17,73 +18,100 @@ def test_products(
     response = api_client.get(url)
 
     assert response.status_code == 200
-    assert isinstance(response.data, list)
+    assert isinstance(response.data, dict)
 
-    product_found = False
+    expected = ["count", "next", "previous", "results"]
+    for key in expected:
+        assert key in response.data
 
-    for category in response.data:
-        for subcategory in category.get("subcategories", []):
-            for prod in subcategory.get("products", []):
-                if prod["title"] == product.title:
-                    product_found = True
 
-                    assert prod["id"] == product.id
-                    assert prod["price"] == f"{product.price:,.0f}"
-                    assert prod["slug"] == slugify(product.title)
-                    assert prod["features"] == [
-                        {"feature": f.feature.name, "value": f.value} for f in features
-                    ]
-                    break
-    assert product_found, f"Product '{product.title}' not found in response"
+def test_select_product_with_slug(api_client, sample_products):
+    _, _, product = sample_products
+
+    url = reverse("product-list-api")
+    response = api_client.get(
+        url,
+        {
+            "category": product.slug,
+        },
+    )
+
+    assert response.status_code == 200
 
 
 @pytest.mark.parametrize(
-    "param,value,code",
+    "param,value",
     [
-        ("sel", lambda sample_products: sample_products[0].slug, 200),
-        ("sel", lambda sample_products: sample_products[1].slug, 200),
-        ("wrong_param", lambda sample_products: sample_products[1].slug, 200),
+        ("min_price", lambda _: random.randint(10_000_000, 50_000_000)),
+        ("max_price", lambda _: random.randint(10_000_000, 50_000_000)),
+        ("wrong_param", "wrong-value"),
     ],
 )
-def test_product_with_params(api_client, sample_products, param, value, code):
+def test_products_filtering(
+    api_client,
+    sample_products,
+    sample_features,
+    param,
+    value,
+):
     if callable(value):
         value = value(sample_products)
 
     url = reverse("product-list-api")
     response = api_client.get(url, {param: value})
-    assert response.status_code == code
 
-    data = response.json()
-    assert isinstance(data, list)
-    assert len(data) >= 1
+    assert response.status_code == 200
 
-    # Check if product exists in the returned data
-    returned_category = data[0]
+    data = response.data
+    results = data["results"]
 
-    product = sample_products[2]
+    if results:
+        expected_fields = [
+            "title",
+            "slug",
+            "visit_count",
+            "price",
+            "features",
+        ]
+        assert isinstance(results, list)
 
-    found = False
-    for prod in returned_category.get("products", []):
-        if prod["id"] == product.id:
-            found = True
-            assert prod["title"] == product.title
-            assert prod["price"] == f"{product.price:,.0f}"
-            break
-
-    for sub in returned_category.get("subcategories", []):
-        for prod in sub.get("products", []):
-            if prod["id"] == product.id:
-                found = True
-                assert prod["title"] == product.title
-                assert prod["price"] == f"{product.price:,.0f}"
-                break
+        for res in results:
+            for exp in expected_fields:
+                assert exp in res
 
 
-def extract_products(category):
-    products = category.get("products", [])
-    for sub in category.get("subcategories", []):
-        products += extract_products(sub)
-    return products
+@pytest.mark.parametrize(
+    "sort_order,is_desc",
+    [
+        ("price", False),
+        ("-price", True),
+        ("visit_count", False),
+        ("-visit_count", True),
+        ("created_at", False),
+        ("-created_at", True),
+    ],
+)
+def test_products_sorted(
+    api_client,
+    sample_products,
+    sort_order,
+    is_desc,
+):
+    _, _, _ = sample_products
+    url = reverse("product-list-api")
+
+    response = api_client.get(url, {"ordering": sort_order})
+
+    assert response.status_code == 200
+
+    results = response.json()["results"]
+    field = sort_order.lstrip("-")
+    values = [item[field] for item in results]
+
+    if is_desc:
+        assert values == sorted(values, reverse=True)
+    else:
+        assert values == sorted(values)
 
 
 def test_search_products(
@@ -93,104 +121,32 @@ def test_search_products(
     _, _, product = sample_products
 
     url = reverse("product-list-api")
-    response = api_client.get(
-        url,
-        {
-            "search": product.title,
-        },
-    )
-
-    all_products = []
-    for category in response.json():
-        all_products += extract_products(category)
+    response = api_client.get(url, {"search": product.title})
 
     assert response.status_code == 200
-    assert any(p["title"] == product.title for p in all_products)
+    results = response.json()["results"]
+
+    assert len(results) == 1
+    assert results[0]["slug"] == product.slug
 
 
-def test_filter_products(
-    api_client,
-    sample_products,
-):
-    _, child, _ = sample_products
-    url = reverse("product-list-api")
-
-    filter_response = api_client.get(
-        url,
-        {
-            "selected": child.slug,
-            "min_price": 500,
-            "max_price": 1000,
-        },
-    )
-    assert filter_response.status_code == 200
-
-    data = filter_response.json()
-    filtered_products = data[0].get("products", [])
-
-    price = [float(p["price"].replace(",", "")) for p in filtered_products]
-
-    assert sorted(price) == price
-
-
-@pytest.mark.parametrize(
-    "sort_order,is_desc",
-    [
-        ("price_asc", False),
-        ("price_desc", True),
-        ("most_visited", True),
-    ],
-)
-def test_sort_products(
-    api_client,
-    sample_products,
-    sort_order,
-    is_desc,
-):
-    _, child, _ = sample_products
-    url = reverse("product-list-api")
-
-    sort_response = api_client.get(
-        url,
-        {
-            "selected": child.slug,
-            "sorted": sort_order,
-        },
-    )
-
-    assert sort_response.status_code == 200
-
-    data = sort_response.json()
-    products = data[0].get("products", [])
-    prices = [float(p["price"].replace(",", "")) for p in products]
-
-    assert prices == sorted(prices, reverse=is_desc)
-
-
-def test_sort_products_failed(
-    api_client,
-    sample_products,
-):
-    url = reverse("product-list-api")
-
-    response = api_client.get(
-        url,
-        {
-            "sorted": "invalid_sorted",
-        },
-    )
+def test_categories(api_client, sample_products):
+    url = reverse("category-list-api")
+    response = api_client.get(url)
+    data = response.data
 
     assert response.status_code == 200
-
-    data = response.json()
-
     assert isinstance(data, list)
-    assert "products" in data[0]
+    assert len(data) >= 1
 
-    products = data[0].get("products", [])
-    product_ids = [p["id"] for p in products]
-
-    assert product_ids == sorted(product_ids, reverse=True)
+    expected = [
+        "title",
+        "slug",
+        "products_preview",
+        "subcategories",
+    ]
+    for exp in expected:
+        assert exp in data[0]
 
 
 def test_product_detail(
@@ -213,7 +169,7 @@ def test_product_detail(
     assert data["description"] == product.description
 
 
-def test_create_feedback(
+def test_feedback_create(
     api_client,
     sample_active_user,
     sample_products,
@@ -221,10 +177,11 @@ def test_create_feedback(
     user = sample_active_user
     _, _, product = sample_products
 
+    api_client.force_authenticate(user=user)
+
     url = reverse(
         "create-feedback",
     )
-    api_client.force_authenticate(user)
     response = api_client.post(
         url,
         {
@@ -238,7 +195,7 @@ def test_create_feedback(
     assert Feedback.objects.filter(user=user, product=product).exists()
 
 
-def test_create_feedback_invalid(
+def test_invalid_feedback_create(
     api_client,
     sample_products,
     sample_active_user,
@@ -250,7 +207,6 @@ def test_create_feedback_invalid(
     url = reverse("create-feedback")
 
     api_client.force_authenticate(user)
-    feedback = sample_feedbacks
 
     assert Feedback.objects.filter(user=user).exists()
 
@@ -275,7 +231,7 @@ def test_create_feedback_invalid(
         (False, 201),
     ],
 )
-def test_like_toggle(
+def test_toggle_likes(
     api_client,
     sample_active_user,
     sample_products,

@@ -37,6 +37,10 @@ class CustomUserManager(BaseUserManager):
 
 
 class TimestampModel(models.Model):
+    """
+    Provide automatic timestamp tracking for all models
+    """
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         null=True,
@@ -52,11 +56,15 @@ class TimestampModel(models.Model):
 
 class CustomUser(TimestampModel, AbstractUser):
     """
-    Custom user model with the mail as the authenticator
+    Custom user model where email is used as the primary identifier
     """
 
-    username = models.CharField(max_length=50, null=True, blank=True)
     email = models.EmailField(unique=True)
+    username = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

@@ -18,11 +18,17 @@ User = get_user_model()
         200: openapi.Response(description="Account activated"),
         400: openapi.Response(description="Invalid activation link"),
     },
-    tags=["Auth"],
+    tags=["Custom Auth"],
 )
 @api_view(["GET"])
-def activate_user_view(request, uid, token):
-    """Activate user account by the given uid/token"""
+def activate_user_view(
+    request,
+    uid,
+    token,
+):
+    """
+    Activate user account by the given uid | token
+    """
     try:
         uid = urlsafe_base64_decode(uid).decode()
         user = User.objects.get(pk=uid)

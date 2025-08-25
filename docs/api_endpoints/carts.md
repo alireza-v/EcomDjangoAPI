@@ -1,7 +1,7 @@
 # 🛒 API Endpoints – Cart
 
-- **GET/POST `/api/checkout/carts/`**
-  List or create cart items
+- **GET/POST `/api/v1/checkout/carts/`**
+  List & create cart items
   **Auth required:** ✅ Yes
 
   **Request body**
@@ -13,8 +13,8 @@
   - 201 Created
   - 401 Unauthorized
 
-- **POST `/api/checkout/cart/drop/`**
-  Clear all items from user cart
+- **POST `/api/v1/checkout/cart/drop/`**
+  Reset user cart
   **Auth required:** ✅ Yes
 
   **Responses**
@@ -22,7 +22,7 @@
   - 400 Bad Request
   - 401 Unauthorized
 
-- **POST `/api/checkout/`**
+- **POST `/api/v1/checkout/`**
   Start checkout and create an order
   **Auth required:** ✅ Yes
 

@@ -41,7 +41,7 @@ def test_user_registration(
     assert response.status_code == 201
     assert all(key in response.data for key in ("email", "username"))
 
-    # check password hashing
+    # check password being hashed
     user = User.objects.get(email=email)
     assert user.check_password(password)
 
@@ -98,7 +98,7 @@ def test_user_register_invalid_credentials(
     assert any(key in response.data for key in ("email", "password"))
 
 
-def test_user_activation(
+def test_activate_user(
     api_client,
     sample_inactive_user,
 ):
@@ -107,7 +107,7 @@ def test_user_activation(
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
 
-    response = api_client.get(f"/api/users/activate/{uid}/{token}/")
+    response = api_client.get(f"/api/v1/auth/activate/{uid}/{token}/")
 
     user.refresh_from_db()
 
@@ -294,7 +294,5 @@ def test_reset_password_confirm(
             "new_password": RAW_PASSWORD,
         },
     )
-    print(response)
-    print(response.data)
 
     assert response.status_code == expected_code

@@ -3,11 +3,7 @@ from random import randint
 import pytest
 from django.urls import reverse
 
-from cart.models import (
-    CartItem,
-    Order,
-    OrderItem,
-)
+from cart.models import CartItem, Order, OrderItem
 from conftest import User
 
 
@@ -48,8 +44,7 @@ def test_cart_create(
 
     if expected_status == 201 or expected_status == 200:
         data = response.json()
-        print(response.status_code)
-        print(data)
+
         assert all(
             key
             for key in [
@@ -58,7 +53,8 @@ def test_cart_create(
                 "product_info",
             ]
         )
-        prev_quantity = cart.quantity if cart else 0  # current cart quantity
+        # current cart quantity
+        prev_quantity = cart.quantity if cart else 0
 
         if action == "add":
             expected_quantity = prev_quantity + quantity
@@ -77,7 +73,7 @@ def test_cart_create(
     "setup_cart,expected_status",
     [
         (True, 204),
-        (False, 400),
+        (False, 200),
     ],
 )
 def test_cart_drop(
@@ -101,12 +97,9 @@ def test_cart_drop(
 
 def test_cart_list(
     api_client,
-    sample_products,
     sample_active_user,
-    sample_carts,
 ):
     user = sample_active_user
-
     api_client.force_authenticate(user)
 
     url = reverse("cart-list")
@@ -115,10 +108,19 @@ def test_cart_list(
 
     assert response.status_code == 200
     assert isinstance(data, list)
-    assert all(key for key in ["user", "quantity", "product_info"])
+
+    expected_keys = [
+        "user",
+        "quantity",
+        "product_info",
+    ]
+    assert all(expected_keys.issubset(item.keys()) for item in data)
 
 
-def test_failed_order(api_client, sample_active_user):
+def test_failed_order(
+    api_client,
+    sample_active_user,
+):
     user = sample_active_user
 
     url = reverse("checkout")
@@ -150,7 +152,7 @@ def test_success_order(
 
     response = api_client.post(url)
 
-    # empty cart check
+    # check empty cart
     if stock < cart_quantity:
         assert response.status_code == 400
         assert f"Not enough stock for {product.title}"

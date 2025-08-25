@@ -20,14 +20,54 @@ fake = Faker("fa_IR")
 
 
 class Command(BaseCommand):
-    help = "Seed the database with random data for categories, products, and related features."
+    help = "Seed the database with random data by necessary models"
 
     features_list = [
-        ("برند", ["اپل", "سامسونگ", "دل", "اچ‌پی", "لنوو"]),
-        ("حافظه", ["128 گیگابایت", "256 گیگابایت", "512 گیگابایت", "1 ترابایت"]),
-        ("رم", ["4 گیگابایت", "8 گیگابایت", "16 گیگابایت", "32 گیگابایت"]),
-        ("رنگ", ["مشکی", "نقره‌ای", "آبی", "قرمز"]),
-        ("اندازه صفحه", ["13 اینچ", "15 اینچ", "17 اینچ"]),
+        (
+            "برند",
+            [
+                "اپل",
+                "سامسونگ",
+                "دل",
+                "اچ‌پی",
+                "لنوو",
+            ],
+        ),
+        (
+            "حافظه",
+            [
+                "128 گیگابایت",
+                "256 گیگابایت",
+                "512 گیگابایت",
+                "1 ترابایت",
+            ],
+        ),
+        (
+            "رم",
+            [
+                "4 گیگابایت",
+                "8 گیگابایت",
+                "16 گیگابایت",
+                "32 گیگابایت",
+            ],
+        ),
+        (
+            "رنگ",
+            [
+                "مشکی",
+                "نقره‌ای",
+                "آبی",
+                "قرمز",
+            ],
+        ),
+        (
+            "اندازه صفحه",
+            [
+                "13 اینچ",
+                "15 اینچ",
+                "17 اینچ",
+            ],
+        ),
     ]
 
     def handle(self, *args, **kwargs):
@@ -50,7 +90,9 @@ class Command(BaseCommand):
             ),
         ]
 
-        user, created = User.objects.get_or_create(email="admin@email.com")
+        user, created = User.objects.get_or_create(
+            email="admin@email.com",
+        )
         if created:
             user.set_password("123")
             user.is_superuser = True
@@ -63,12 +105,12 @@ class Command(BaseCommand):
         features_dict = {feature.name: feature for feature in FeatureName.objects.all()}
 
         for subcat in subcategories:
-            for i in range(10):
+            for i in range(5):
                 product = Product.objects.create(
                     title=f"{subcat.title} مدل {i + 1}",
                     category=subcat,
-                    price=random.randint(200, 3000) * 100,
-                    description=fake.text(max_nb_chars=200),
+                    price=random.randint(10_000_000, 50_000_000),
+                    description=fake.text(max_nb_chars=100),
                     stock=random.randint(0, 10),
                     visit_count=random.randint(1, 100),
                 )

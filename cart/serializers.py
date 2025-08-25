@@ -1,9 +1,8 @@
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 
+from cart.models import CartItem
 from product.models import Product
-
-from .models import CartItem
 
 
 class CartItemSerializer(ModelSerializer):
@@ -27,7 +26,7 @@ class CartItemSerializer(ModelSerializer):
         error_messages={
             "min_value": "min value is 1",
             "max_value": "max value is 5",
-            "invalid": "Please enter a valid integer value.",
+            "invalid": "Please enter a valid integer value",
         },
     )
     product_info = serializers.StringRelatedField(source="product")
@@ -43,13 +42,13 @@ class CartItemSerializer(ModelSerializer):
         ]
 
     def create(self, validated_data):
-        request = self.context["request"]
+        user = self.context["request"].user
         product = validated_data.get("product")
         specified_quantity = validated_data.get("quantity", 1)
         action = validated_data.get("action")
 
         cart_item, created = CartItem.objects.get_or_create(
-            user=request.user,
+            user=user,
             product=product,
             defaults={
                 "quantity": specified_quantity,
@@ -66,7 +65,7 @@ class CartItemSerializer(ModelSerializer):
             if cart_item.quantity < specified_quantity:
                 raise serializers.ValidationError(
                     {
-                        "detail": "Cannot remove more than the available.",
+                        "detail": "Cannot remove more than the available",
                     },
                     400,
                 )

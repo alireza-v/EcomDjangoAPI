@@ -25,7 +25,11 @@ def test_product_image(sample_images, sample_products):
     assert str(image) == f"{product.title} - {image.id}"
 
 
-def test_product_features(sample_features, sample_products, sample_feature_name):
+def test_product_features(
+    sample_features,
+    sample_products,
+    sample_feature_name,
+):
     _, _, product = sample_products
     feature_name = sample_feature_name
 
@@ -34,7 +38,11 @@ def test_product_features(sample_features, sample_products, sample_feature_name)
     assert sample_features.value == "red"
 
 
-def test_product_likes(sample_active_user, sample_likes, sample_products):
+def test_product_likes(
+    sample_active_user,
+    sample_likes,
+    sample_products,
+):
     user = sample_active_user
     _, _, product = sample_products
 
@@ -42,7 +50,11 @@ def test_product_likes(sample_active_user, sample_likes, sample_products):
     assert sample_likes.product == product
 
 
-def test_feedback(sample_active_user, sample_feedbacks, sample_products):
+def test_feedback(
+    sample_active_user,
+    sample_feedbacks,
+    sample_products,
+):
     _, _, product = sample_products
     user = sample_active_user
     feedback = sample_feedbacks

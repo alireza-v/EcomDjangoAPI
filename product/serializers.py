@@ -1,19 +1,94 @@
-from django.db.models import Q
+from django.db.models import Avg
 from rest_framework import serializers
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.serializers import ModelSerializer
 
-from product.models import *
+from product.models import (
+    Category,
+    FeatureValue,
+    Feedback,
+    Like,
+    Product,
+    ProductImage,
+)
 
 
 class BaseSerializer(ModelSerializer):
     """
-    Base serializer that removes fields with null values from the API response
+    Remove fields with null values from response
     """
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         return {k: v for k, v in rep.items() if v is not None}
+
+
+class ProductSerializer(BaseSerializer):
+    price = serializers.SerializerMethodField()
+    features = serializers.SerializerMethodField()
+    avg_rating = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "visit_count",
+            "price",
+            "features",
+            "main_image",
+            "description",
+            "slug",
+            "avg_rating",
+            "created_at",
+        ]
+
+    def get_price(self, obj):
+        if obj:
+            return f"{obj.price:,.0f}"
+        return obj
+
+    def get_features(self, obj):
+        from product.serializers import FeatureValueSerializer
+
+        feature_qs = obj.feature_values.all()
+        return FeatureValueSerializer(
+            feature_qs,
+            many=True,
+        ).data
+
+    def get_avg_rating(self, obj):
+        return getattr(obj, "avg_rating", 0) or 0
+
+
+class CategorySerializer(ModelSerializer):
+    products_preview = serializers.SerializerMethodField()
+    subcategories = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Category
+        fields = [
+            "title",
+            "slug",
+            "products_preview",
+            "subcategories",
+        ]
+
+    def get_products_preview(self, obj):
+        """
+        Return sets of products for preview
+        Example: top 5 most visited products in the category
+        """
+        qs = obj.products.annotate(avg_rating=Avg("feedbacks__rating")).order_by(
+            "-visit_count"
+        )[:5]
+        return ProductSerializer(qs, many=True).data
+
+    def get_subcategories(self, obj):
+        return CategorySerializer(
+            obj.subcategories.all(),
+            many=True,
+        ).data
 
 
 class FeatureValueSerializer(ModelSerializer):
@@ -27,138 +102,10 @@ class FeatureValueSerializer(ModelSerializer):
         ]
 
 
-class ProductImageSerializer(ModelSerializer):
+class ProductImageSerializer(BaseSerializer):
     class Meta:
         model = ProductImage
         fields = ["image"]
-
-
-class ProductSerializer(BaseSerializer):
-    price = serializers.ReadOnlyField(source="price_formatter")
-    parent = serializers.StringRelatedField(source="category")
-    features = FeatureValueSerializer(
-        source="feature_values",
-        many=True,
-        read_only=True,
-    )
-    images = ProductImageSerializer(
-        many=True,
-        read_only=True,
-    )
-
-    class Meta:
-        model = Product
-        fields = [
-            "id",
-            "title",
-            "slug",
-            "parent",
-            "price",
-            "main_image",
-            "images",
-            "description",
-            "visit_count",
-            "features",
-        ]
-
-
-class ProductPagination(PageNumberPagination):
-    page_size = 5
-    page_size_query_param = "products_per_page"
-    max_page_size = 20
-
-
-class CategorySerializer(ModelSerializer):
-    subcategories = serializers.SerializerMethodField()
-    products = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Category
-        fields = [
-            "id",
-            "title",
-            "slug",
-            "subcategories",
-            "products",
-        ]
-
-    def get_subcategories(self, obj):
-        if hasattr(obj, "subcategories"):
-            return CategorySerializer(
-                obj.subcategories.all(),
-                many=True,
-                context=self.context,
-            ).data
-        return []
-
-    def get_products(self, obj):
-        if obj.subcategories.exists():
-            return []
-
-        context = self.context
-
-        # query params
-        search_param = context.get("search")
-        sort_params = context.get("sorted")
-        max_price = context.get("max_price")
-        min_price = context.get("min_price")
-
-        product_qs = obj.products.all()
-
-        try:
-            min_price = float(min_price.replace(",", "")) if min_price else None
-            max_price = float(max_price.replace(",", "")) if max_price else None
-        except ValueError:
-            min_price, max_price = None, None
-
-        # search
-        if search_param:
-            product_qs = product_qs.filter(
-                Q(title__icontains=search_param)
-                | Q(description__icontains=search_param),
-            )
-            if not product_qs.exists():
-                return product_qs.none()
-
-        # price filtering
-        if min_price:
-            product_qs = product_qs.filter(price__gte=min_price)
-
-        if max_price:
-            product_qs = product_qs.filter(price__lte=max_price)
-
-        # return empty list if no results found
-        if (min_price or max_price) and not product_qs.exists():
-            return []
-
-        # sorting
-        if sort_params == "price_asc":
-            product_qs = product_qs.order_by("price")
-        elif sort_params == "price_desc":
-            product_qs = product_qs.order_by("-price")
-        elif sort_params == "most_visited":
-            product_qs = product_qs.order_by("-visit_count")
-
-        else:
-            # sorting fallback
-            product_qs = product_qs.order_by("-visit_count")
-
-        paginator = ProductPagination()
-        paginated_products = paginator.paginate_queryset(
-            product_qs, self.context["request"]
-        )
-        serialized_products = ProductSerializer(
-            paginated_products,
-            many=True,
-            context=self.context,
-        )
-
-        return {
-            "count": product_qs.count(),
-            "next": paginator.get_next_link(),
-            "previous": paginator.get_previous_link(),
-            "results": serialized_products.data,
-        }
 
 
 class ProductFeatureSerializer(ModelSerializer):

@@ -7,16 +7,19 @@ class CustomSchemaGenerator(OpenAPISchemaGenerator):
 
         filtered_endpoints = {}
 
-        # Allowed specific Djoser auth paths and methods
+        # Allowed Djoser paths
         allowed_auth_paths = {
             "/auth/users/": ["post"],
-            "/auth/token/login/": ["post"],
-            "/auth/token/logout/": ["post"],
+            "/auth/jwt/create/": ["post"],
+            "/auth/jwt/refesh/": ["post"],
+            "/auth/jwt/verify/": ["post"],
+            "/auth/jwt/logout/": ["post"],
+            "/auth/users/reset_password/": ["post"],
+            "/auth/users/reset_password_confirm/": ["post"],
         }
 
         for path, (view_cls, methods) in endpoints.items():
             if path.startswith("/auth/"):
-                # Include only if path is in allowed_auth_paths with allowed methods
                 if path in allowed_auth_paths:
                     filtered_methods = [
                         (method, view)
@@ -27,7 +30,6 @@ class CustomSchemaGenerator(OpenAPISchemaGenerator):
                         filtered_endpoints[path] = (view_cls, filtered_methods)
 
             else:
-                # Include all non-auth endpoints unfiltered
                 filtered_endpoints[path] = (view_cls, methods)
 
         return filtered_endpoints

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from cart import views
 
 urlpatterns = [
     path(
@@ -10,12 +10,12 @@ urlpatterns = [
     ),
     path(
         "cart/drop/",
-        views.CartDropAPIView.as_view(),
+        views.ClearCartAPIView.as_view(),
         name="cart-drop",
     ),
     path(
         "carts/",
-        views.CartListAPIView.as_view(),
+        views.ShoppingCartListAPIView.as_view(),
         name="cart-list",
     ),
     path(

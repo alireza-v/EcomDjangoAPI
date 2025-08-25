@@ -16,10 +16,10 @@
   - 201 Created
   - 400 Bad Request
 
-- **POST `/api/users/activate/{uid}/{token}/`**
+- **POST `/api/v1/auth/activate/{uid}/{token}/`**
   Activate user account
 
-  **Request body**
+  **Query param**
   - `uid` (string, required)
   - `token` (string, required)
 
@@ -60,7 +60,7 @@
   - 401 Unauthorized
 
 - **POST `/auth/jwt/logout/`**
-  Logout (blacklist refresh token)
+  Logout (Refresh token blacklisted)
 
   **Request body**
   - `refresh` (string, required)
@@ -71,18 +71,8 @@
   - 400 Bad Request
 
 
-- **POST `/auth/jwt/refresh/`**
-  Obtain refresh token
-
-  **Request body**
-  - `refresh` (string, required)
-
-  **Responses**
-  - 200 OK
-  - 400 Bad Request
-
 - **POST `/auth/users/reset_password/`**
-  Request password reset email
+  Request reset-password
 
   **Request body**
   - `email` (string, required)
@@ -92,7 +82,7 @@
   - 400 Bad Request
 
 - **POST `/auth/users/reset_password_confirm/`**
-  Confirm password reset
+  Confirm password-reset
 
   **Request body**
   - `uid` (string, required)

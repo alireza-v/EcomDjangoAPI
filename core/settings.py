@@ -16,6 +16,7 @@ from pathlib import Path
 
 import dj_database_url
 from dotenv import load_dotenv
+from drf_yasg.app_settings import swagger_settings
 
 load_dotenv()
 
@@ -25,7 +26,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="drf_yasg.
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-from drf_yasg.app_settings import swagger_settings
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -34,23 +34,24 @@ from drf_yasg.app_settings import swagger_settings
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True") == "True"
+DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
 
-if DEBUG:
-    ALLOWED_HOSTS = [
-        "localhost",
-        "127.0.0.1",
+ALLOWED_HOSTS = (
+    ["localhost", "127.0.0.1"]
+    if DEBUG
+    else [
+        host.strip()
+        for host in os.getenv("ALLOWED_HOSTS", "").split(",")
+        if host.strip()
     ]
-else:
-    os.getenv("ALLOWED_HOSTS", "").split(",")
-
-
+)
 # Application definition
 
 INSTALLED_APPS = [
     # django admin-interface
     "admin_interface",
     "colorfield",
+    # -------------
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -71,25 +72,17 @@ INSTALLED_APPS = [
     "cart",
 ]
 
-X_FRAME_OPTIONS = "SAMEORIGIN"
+
 SILENCED_SYSTEM_CHECKS = ["security.W019"]
 
 AUTH_USER_MODEL = "users.CustomUser"
 
-swagger_settings.SECURITY_DEFINITIONS = {
-    "Token": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "Authorization",
-    },
-}
 
 DOMAIN = os.getenv("DOMAIN", "localhost:9000")
 
 DJOSER = {
-    "LOGIN_FIELD": "email",
     "SEND_ACTIVATION_EMAIL": True,
-    "ACTIVATION_URL": "api/users/activate/{uid}/{token}/",
+    "ACTIVATION_URL": "api/v1/auth/activate/{uid}/{token}/",
     "USER_CREATE_PASSWORD_RETYPE": False,
     "PASSWORD_RESET_CONFIRM_URL": "auth/users/reset_password_confirm/{uid}/{token}/",
     "SEND_CONFIRMATION_EMAIL": True,
@@ -111,8 +104,22 @@ REST_FRAMEWORK = {
         "user": "50/min",
         "anon": "20/min",
     },
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+    ],
     "EXCEPTION_HANDLER": "users.exceptions.custom_exception_handler",
+    "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
 }
+
+swagger_settings.SECURITY_DEFINITIONS = {
+    "Bearer": {
+        "type": "apiKey",
+        "name": "Authorization",
+        "in": "header",
+        "description": "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
+    }
+}
+
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
@@ -122,10 +129,14 @@ SIMPLE_JWT = {
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
-    CORS_ALLOWED_ORIGINS = os.getev("CORS_ALLOWED_ORIGINS").split(",")
+    CORS_ALLOWED_ORIGINS = [
+        origin.strip()
+        for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+        if origin
+    ]
 
 
-SITE_NAME = os.getenv("SITE_NAME")
+SITE_NAME = os.getenv("SITE_NAME", "site-name")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -141,6 +152,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "core.urls"
+
+LOGIN_URL = "/auth/jwt/create/"
 
 TEMPLATES = [
     {
@@ -171,7 +184,7 @@ if DEBUG:
         }
     }
 else:
-    dj_database_url.parse(os.getenv("DATABASE_URL"))
+    DATABASES = {"default": dj_database_url.parse(os.getenv("DATABASE_URL"))}
 
 
 # Password validation
@@ -208,47 +221,39 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+
+# Email Settings
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 if DEBUG:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-else:
-    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "example@email.com")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "example-password")
 
 
-SWAGGER_USE_COMPAT_RENDERERS = False
-
-
-LOGIN_URL = "/auth/token/login/"
-
-CACHES={
-    "default":{
-        "BACKEND":"django_redis.cache.RedisCache",
-        "LOCATION":"redis://redis:6379/1",
-        "OPTIONS":{
-            "CLIENT_CLASS":"django_redis.client.DefaultClient",
+# Redis caching
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
     },
 }
 
-SESSION_ENGINE="django.contrib.sessions.backends.cache"
-SESSION_CACHE_ALIAS="default"
-
-CELERY_BROKER_URL = "redis://redis:6379/0"
-CELERY_RESULT_BACKEND = "redis://redis:6379/0"
-CELERY_ACCEPT_CONTENT=["json"]
-CELERY_TASK_SERIALIZER="json"
-CELERY_RESULT_SERIALIZER="json"
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"

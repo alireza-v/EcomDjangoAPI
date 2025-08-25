@@ -1,11 +1,13 @@
+// This script provides a user-friendly numeric input experience with real-time comma formatting while keeping the value backend-compatible on form submission
+
 document.addEventListener("DOMContentLoaded", function () {
   const input = document.querySelector("#id_price");
   if (!input) return;
 
-  // Force input type to text to allow selection and formatting
+
   input.setAttribute("type", "text");
 
-  // Strip commas before form submission
+
   input.form.addEventListener("submit", function () {
     input.value = input.value.replace(/,/g, "");
   });
@@ -23,9 +25,9 @@ document.addEventListener("DOMContentLoaded", function () {
     // Format integer part
     intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
-    // Set formatted value
+
     input.value = decPart.length > 0 ? `${intPart}.${decPart}` : intPart;
 
-    // Cursor reset isn't necessary with type="text"
+
   });
 });

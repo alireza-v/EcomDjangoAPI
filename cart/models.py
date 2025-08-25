@@ -39,12 +39,11 @@ class CartItem(TimestampModel):
 
 
 class Order(TimestampModel):
-    STATUS = [
-        ("pending", "PENDING"),
-        ("paid", "PAID"),
-        ("completed", "COMPLETED"),
-        ("canceled", "CANCELED"),
-    ]
+    class Status(models.TextChoices):
+        PENDING = "pending", _("PENDING")
+        PAID = "paid", _("PAID")
+        COMPLETED = "completed", _("COMPLETED")
+        CANCELED = "canceled", _("CANCELED")
 
     user = models.ForeignKey(
         User,
@@ -54,10 +53,14 @@ class Order(TimestampModel):
     )
     status = models.CharField(
         verbose_name=_("وضعیت"),
-        choices=STATUS,
+        choices=Status.choices,
         max_length=20,
-        default="pending",
+        default=Status.PENDING,
+        db_index=True,
     )
+
+    class Meta:
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"Order by {self.user} - Status: {self.status.capitalize()}"
@@ -82,6 +85,9 @@ class OrderItem(TimestampModel):
         max_digits=12,
         decimal_places=2,
     )
+
+    class Meta:
+        ordering = ["-created_at"]
 
     def __str__(self):
         return (

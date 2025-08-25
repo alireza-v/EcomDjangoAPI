@@ -3,8 +3,9 @@ from django.db import models
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
-User = get_user_model()
 from users.models import TimestampModel
+
+User = get_user_model()
 
 
 class Category(TimestampModel):
@@ -35,6 +36,9 @@ class Category(TimestampModel):
     )
 
     def get_breadcrumbs(self):
+        """
+        Returns the breadcrumb path of the category from the top-level parent down to itself
+        """
         breadcrumbs = []
         category = self
         while category:
@@ -43,6 +47,7 @@ class Category(TimestampModel):
         return breadcrumbs
 
     class Meta:
+        ordering = ["-visit_count"]
         verbose_name = _("گروه")
         verbose_name_plural = _("گروه ها")
 
@@ -122,6 +127,7 @@ class Product(TimestampModel):
     )
 
     class Meta:
+        ordering = ["-visit_count"]
         verbose_name = _("محصول")
         verbose_name_plural = _("محصولات")
 

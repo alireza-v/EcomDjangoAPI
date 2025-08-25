@@ -1,22 +1,19 @@
 from django.db import transaction
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import generics, permissions, status
+from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import (
-    CartItem,
-    Order,
-    OrderItem,
-)
-from .serializers import CartItemSerializer
+from cart.models import CartItem, Order, OrderItem
+from cart.serializers import CartItemSerializer
 
 
 class CartCreateAPIView(generics.CreateAPIView):
     """Create cart items"""
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     serializer_class = CartItemSerializer
 
     @swagger_auto_schema(
@@ -37,10 +34,12 @@ class CartCreateAPIView(generics.CreateAPIView):
         serializer.save(user=self.request.user)
 
 
-class CartDropAPIView(APIView):
-    """Clear user cart items all at once"""
+class ClearCartAPIView(APIView):
+    """
+    Allow authenticated users to clear all items from their cart
+    """
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Clear user cart",
@@ -49,38 +48,37 @@ class CartDropAPIView(APIView):
             204: openapi.Response(
                 description="Cart dropped successfully — no content returned",
             ),
-            400: openapi.Response(
-                description="Cart already empty.",
+            200: openapi.Response(
+                description="Cart already empty",
             ),
         },
         tags=["Cart"],
     )
     def post(self, request, *args, **kwargs):
-        user = request.user
-        carts = CartItem.objects.filter(user=user)
+        user_cart_contents = CartItem.objects.filter(user=request.user)
 
-        if carts.exists():
-            carts.delete()
+        if user_cart_contents.exists():
+            user_cart_contents.delete()
             return Response(
                 status=status.HTTP_204_NO_CONTENT,
             )
         return Response(
             {
-                "detail": "Cart already empty.",
+                "detail": "Cart already empty",
             },
-            status=status.HTTP_400_BAD_REQUEST,
+            status=status.HTTP_200_OK,
         )
 
 
-class CartListAPIView(generics.ListAPIView):
-    """Display user related cart items"""
+class ShoppingCartListAPIView(generics.ListAPIView):
+    """
+    Retrieves list of cart items associated with the authenticated user
+    """
 
-    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CartItemSerializer
-    queryset = CartItem.objects.all()
 
     @swagger_auto_schema(
-        operation_summary="Cart list",
+        operation_summary="Car list",
         operation_description="Display user cart items",
         responses={
             200: CartItemSerializer(many=True),
@@ -91,19 +89,20 @@ class CartListAPIView(generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
+    def get_queryset(self):
+        return CartItem.objects.filter(user=self.request.user)
+
 
 class CheckoutAPIView(APIView):
     """Start checkout process"""
 
-    permission_classes = [permissions.IsAuthenticated]
-
     @swagger_auto_schema(
         operation_summary="Checkout and create an order",
         operation_description=(
-            "Takes all items from the authenticated user's cart, "
-            "checks stock availability, creates an order and order items, "
-            "updates product stock, and clears the cart. "
-            "If stock is insufficient or cart is empty, returns an error."
+            "Takes all items from the authenticated user's cart, ",
+            "checks stock availability, creates an order and order items, ",
+            "updates product stock, and clears the cart. ",
+            "If stock is insufficient or cart is empty, returns an error.",
         ),
         responses={
             201: openapi.Response(
@@ -126,10 +125,11 @@ class CheckoutAPIView(APIView):
     )
     @transaction.atomic
     def post(self, request, *args, **kwargs):
-        user = request.user
-        cart_items = CartItem.objects.select_related("product").filter(user=user)
+        user_shopping_cart = CartItem.objects.select_related("product").filter(
+            user=request.user
+        )
 
-        if not cart_items.exists():
+        if not user_shopping_cart.exists():
             return Response(
                 {
                     "detail": "Cart is empty",
@@ -138,21 +138,23 @@ class CheckoutAPIView(APIView):
             )
 
         order = Order.objects.create(
-            user=user,
+            user=request.user,
         )
-        for cart in cart_items:
+        for cart in user_shopping_cart:
             product = cart.product
 
             if product.stock < cart.quantity:
                 return Response(
-                    {"detail": f"Not enough stock for {product.title}"},
+                    {
+                        "detail": f"Not enough stock for {product.title}",
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             product.stock -= cart.quantity
             product.save()
 
-            # create order item
+            # create order-item
             OrderItem.objects.create(
                 order=order,
                 product=product,
@@ -160,8 +162,8 @@ class CheckoutAPIView(APIView):
                 price_at_purchase=product.price,
             )
 
-        # clear cart
-        cart_items.delete()
+        # reset cart
+        user_shopping_cart.delete()
 
         return Response(
             {
