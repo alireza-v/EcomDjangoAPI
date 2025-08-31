@@ -85,15 +85,20 @@ class CategorySerializer(BaseSerializer):
         Return sets of products for preview
         Example: top 5 most visited products in the category
         """
-        qs = obj.products.annotate(avg_rating=Avg("feedbacks__rating")).order_by(
-            "-visit_count"
-        )[:5]
-        return ProductSerializer(qs, many=True).data
+        qs = obj.products.annotate(
+            avg_rating=Avg("product_feedbacks__rating")
+        ).order_by("-visit_count")[:5]
+        return ProductSerializer(
+            qs,
+            many=True,
+            context=self.context,
+        ).data
 
     def get_subcategories(self, obj):
         return CategorySerializer(
             obj.subcategories.all(),
             many=True,
+            context=self.context,
         ).data
 
 

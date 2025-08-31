@@ -206,13 +206,13 @@ class Feedback(TimestampModel):
         settings.AUTH_USER_MODEL,
         verbose_name=_("کاربر"),
         on_delete=models.CASCADE,
-        related_name="feedbacks",
+        related_name="user_feedbacks",
     )
     product = models.ForeignKey(
         Product,
         verbose_name=_("محصول"),
         on_delete=models.CASCADE,
-        related_name="feedbacks",
+        related_name="product_feedbacks",
     )
     description = models.TextField(_("توضیحات"))
     rating = models.PositiveSmallIntegerField(

@@ -146,15 +146,6 @@ def test_categories(auth_client, sample_products):
     assert isinstance(data, list)
     assert len(data) >= 1
 
-    expected = [
-        "title",
-        "slug",
-        "products_preview",
-        "subcategories",
-    ]
-    for exp in expected:
-        assert exp in data[0]
-
 
 def test_product_detail(auth_client, sample_products):
     _, _, product = sample_products

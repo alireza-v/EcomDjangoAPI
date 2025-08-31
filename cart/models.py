@@ -16,13 +16,13 @@ class CartItem(TimestampModel):
         settings.AUTH_USER_MODEL,
         verbose_name=_("کاربر"),
         on_delete=models.CASCADE,
-        related_name="cart_items",
+        related_name="user_carts",
     )
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
         verbose_name=_("محصول"),
-        related_name="cart_items",
+        related_name="product_carts",
     )
     quantity = models.PositiveIntegerField(
         verbose_name=_("مقدار"),
@@ -70,7 +70,7 @@ class Order(TimestampModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         verbose_name=_("کاربر"),
-        related_name="orders",
+        related_name="user_orders",
     )
     status = models.CharField(
         verbose_name=_("وضعیت"),
@@ -125,7 +125,7 @@ class OrderItem(TimestampModel):
         Product,
         on_delete=models.PROTECT,
         verbose_name=_("محصول"),
-        related_name="order_items",
+        related_name="product_order_items",
     )
     quantity = models.PositiveIntegerField(verbose_name="مقدار")
     price_at_purchase = models.DecimalField(

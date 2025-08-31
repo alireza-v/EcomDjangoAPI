@@ -48,7 +48,7 @@ class ProductListAPIView(generics.ListAPIView):
         Return products by category slug passed as query param:
         ?category=<str:slug>
         """
-        qs = Product.objects.annotate(avg_rating=Avg("feedbacks__rating"))
+        qs = Product.objects.annotate(avg_rating=Avg("product_feedbacks__rating"))
         category_slug = self.request.query_params.get("category")
 
         if category_slug:
