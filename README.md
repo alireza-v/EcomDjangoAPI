@@ -29,11 +29,13 @@ If you prefer English labels, you can update the `verbose_name` in your models o
    - Price range & keyword search
    - Efficient product pagination for large catalogs
 - 🛒 Cart management
-   - Add, update, and remove items
+   - Add & Remove products
    - Persistent cart per user
 - 💳 Checkout system
    - Order creation
-   - Payment flow integration ready (**planned for later updates**)
+   - Invoice
+   - Order history tracking to view past orders
+   - Payment flow will be integrated later to finalize the purchase (**planned for later updates**)
 - 📊 Admin tools
    - Manage products, categories, and orders
    - Track visit counts & product popularity

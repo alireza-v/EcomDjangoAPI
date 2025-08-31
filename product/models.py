@@ -1,11 +1,9 @@
-from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.db import models
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
 from users.models import TimestampModel
-
-User = get_user_model()
 
 
 class Category(TimestampModel):
@@ -205,7 +203,7 @@ class ProductImage(TimestampModel):
 
 class Feedback(TimestampModel):
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         verbose_name=_("کاربر"),
         on_delete=models.CASCADE,
         related_name="feedbacks",
@@ -238,7 +236,7 @@ class Feedback(TimestampModel):
 
 class Like(TimestampModel):
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="user_likes",
     )

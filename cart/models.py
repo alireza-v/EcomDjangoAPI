@@ -1,32 +1,38 @@
-from django.contrib.auth import get_user_model
+from decimal import Decimal
+
+from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from product.models import Product
 from users.models import TimestampModel
 
-User = get_user_model()
-
 
 class CartItem(TimestampModel):
+    """Products added to the user's cart"""
+
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         verbose_name=_("کاربر"),
         on_delete=models.CASCADE,
-        related_name="cart_users",
+        related_name="cart_items",
     )
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
         verbose_name=_("محصول"),
-        related_name="cart_products",
+        related_name="cart_items",
     )
     quantity = models.PositiveIntegerField(
         verbose_name=_("مقدار"),
         default=1,
+        validators=[MinValueValidator(1)],
     )
 
     class Meta:
+        verbose_name = "سبد خرید"
+        verbose_name_plural = "سبد خرید"
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "product"],
@@ -34,19 +40,34 @@ class CartItem(TimestampModel):
             )
         ]
 
+    @property
+    def subtotal(self):
+        """
+        Returns total amount being bought
+        """
+        return self.product.price * self.quantity
+
     def __str__(self):
         return f"{self.user.email} - {self.product.title} (x{self.quantity})"
 
 
 class Order(TimestampModel):
+    """
+    Stores the user's order information and summary
+    """
+
     class Status(models.TextChoices):
+        """
+        Order status being updated at payment time
+        """
+
         PENDING = "pending", _("PENDING")
         PAID = "paid", _("PAID")
-        COMPLETED = "completed", _("COMPLETED")
-        CANCELED = "canceled", _("CANCELED")
+        FAILED = "failed", _("FAILED")
+        SHIPPED = "shipped", _("SHIPPED")
 
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         verbose_name=_("کاربر"),
         related_name="orders",
@@ -58,26 +79,53 @@ class Order(TimestampModel):
         default=Status.PENDING,
         db_index=True,
     )
+    shipping_address = models.TextField(
+        verbose_name=_("آدرس تحویل"),
+    )
+    total_amount = models.DecimalField(
+        verbose_name=_("مبلغ کل"),
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="snapshot of the total price at checkout time",
+    )
+
+    @property
+    def total(self):
+        """
+        Returns computed total amount
+        e.g. sum of all OrderItem prices * quantities
+        """
+        return sum(
+            Decimal(item.price_at_purchase) * item.quantity
+            for item in self.order_items.all()
+        )
 
     class Meta:
         ordering = ["-created_at"]
+        verbose_name = "سفارش"
+        verbose_name_plural = "سفارش ها"
 
     def __str__(self):
         return f"Order by {self.user} - Status: {self.status.capitalize()}"
 
 
 class OrderItem(TimestampModel):
+    """
+    Stores detailed information about each product in an order, including quantity and purchase price
+    """
+
     order = models.ForeignKey(
         Order,
         on_delete=models.CASCADE,
         verbose_name=_("سفارش"),
-        related_name="items",
+        related_name="order_items",
     )
     product = models.ForeignKey(
         Product,
         on_delete=models.PROTECT,
         verbose_name=_("محصول"),
-        related_name="item_products",
+        related_name="order_items",
     )
     quantity = models.PositiveIntegerField(verbose_name="مقدار")
     price_at_purchase = models.DecimalField(
@@ -87,6 +135,8 @@ class OrderItem(TimestampModel):
     )
 
     class Meta:
+        verbose_name = "مقدار سفارش"
+        verbose_name_plural = "مقادیر سفارش"
         ordering = ["-created_at"]
 
     def __str__(self):

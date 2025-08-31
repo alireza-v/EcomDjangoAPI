@@ -7,15 +7,16 @@ from product.models import Feedback, Like
 
 
 def test_products(
-    api_client,
+    auth_client,
     sample_products,
     sample_features,
 ):
     _, _, product = sample_products
     features = [sample_features]
+    client, _ = auth_client
 
     url = reverse("product-list-api")
-    response = api_client.get(url)
+    response = client.get(url)
 
     assert response.status_code == 200
     assert isinstance(response.data, dict)
@@ -25,11 +26,12 @@ def test_products(
         assert key in response.data
 
 
-def test_select_product_with_slug(api_client, sample_products):
+def test_select_product_with_slug(auth_client, sample_products):
     _, _, product = sample_products
+    client, _ = auth_client
 
     url = reverse("product-list-api")
-    response = api_client.get(
+    response = client.get(
         url,
         {
             "category": product.slug,
@@ -48,17 +50,18 @@ def test_select_product_with_slug(api_client, sample_products):
     ],
 )
 def test_products_filtering(
-    api_client,
+    auth_client,
     sample_products,
     sample_features,
     param,
     value,
 ):
+    client, _ = auth_client
     if callable(value):
         value = value(sample_products)
 
     url = reverse("product-list-api")
-    response = api_client.get(url, {param: value})
+    response = client.get(url, {param: value})
 
     assert response.status_code == 200
 
@@ -92,15 +95,16 @@ def test_products_filtering(
     ],
 )
 def test_products_sorted(
-    api_client,
+    auth_client,
     sample_products,
     sort_order,
     is_desc,
 ):
     _, _, _ = sample_products
     url = reverse("product-list-api")
+    client, _ = auth_client
 
-    response = api_client.get(url, {"ordering": sort_order})
+    response = client.get(url, {"ordering": sort_order})
 
     assert response.status_code == 200
 
@@ -115,13 +119,14 @@ def test_products_sorted(
 
 
 def test_search_products(
-    api_client,
+    auth_client,
     sample_products,
 ):
     _, _, product = sample_products
+    client, _ = auth_client
 
     url = reverse("product-list-api")
-    response = api_client.get(url, {"search": product.title})
+    response = client.get(url, {"search": product.title})
 
     assert response.status_code == 200
     results = response.json()["results"]
@@ -130,9 +135,11 @@ def test_search_products(
     assert results[0]["slug"] == product.slug
 
 
-def test_categories(api_client, sample_products):
+def test_categories(auth_client, sample_products):
+    client, _ = auth_client
+
     url = reverse("category-list-api")
-    response = api_client.get(url)
+    response = client.get(url)
     data = response.data
 
     assert response.status_code == 200
@@ -149,11 +156,9 @@ def test_categories(api_client, sample_products):
         assert exp in data[0]
 
 
-def test_product_detail(
-    api_client,
-    sample_products,
-):
+def test_product_detail(auth_client, sample_products):
     _, _, product = sample_products
+    client, _ = auth_client
 
     url = reverse(
         "product-detail-api",
@@ -161,7 +166,7 @@ def test_product_detail(
             "slug": product.slug,
         },
     )
-    response = api_client.get(url)
+    response = client.get(url)
     data = response.data
 
     assert response.status_code == 200
@@ -169,20 +174,14 @@ def test_product_detail(
     assert data["description"] == product.description
 
 
-def test_feedback_create(
-    api_client,
-    sample_active_user,
-    sample_products,
-):
-    user = sample_active_user
+def test_feedback_create(auth_client, sample_products):
     _, _, product = sample_products
-
-    api_client.force_authenticate(user=user)
+    client, user = auth_client
 
     url = reverse(
         "create-feedback",
     )
-    response = api_client.post(
+    response = client.post(
         url,
         {
             "product": product.id,
@@ -196,21 +195,18 @@ def test_feedback_create(
 
 
 def test_invalid_feedback_create(
-    api_client,
+    auth_client,
     sample_products,
-    sample_active_user,
     sample_feedbacks,
 ):
-    user = sample_active_user
     _, _, product = sample_products
+    client, user = auth_client
 
     url = reverse("create-feedback")
 
-    api_client.force_authenticate(user)
-
     assert Feedback.objects.filter(user=user).exists()
 
-    response = api_client.post(
+    response = client.post(
         url,
         {
             "product": product.id,
@@ -232,17 +228,15 @@ def test_invalid_feedback_create(
     ],
 )
 def test_toggle_likes(
-    api_client,
-    sample_active_user,
+    auth_client,
     sample_products,
     sample_likes,
     like_exists_before,
     expected_status,
 ):
-    user = sample_active_user
     _, _, product = sample_products
+    client, user = auth_client
 
-    api_client.force_authenticate(user)
     url = reverse("like-toggle")
 
     if like_exists_before:
@@ -253,7 +247,7 @@ def test_toggle_likes(
             product=product,
         ).delete()
 
-    response = api_client.post(
+    response = client.post(
         url,
         {
             "product": product.id,

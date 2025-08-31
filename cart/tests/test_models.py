@@ -1,4 +1,4 @@
-from cart.models import *
+from cart.models import CartItem, Order
 
 
 def test_cart_creation(

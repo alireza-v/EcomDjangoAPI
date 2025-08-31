@@ -5,7 +5,8 @@ from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import filters, generics, permissions, status
+from rest_framework import filters, generics, status
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -28,7 +29,7 @@ class ProductListAPIView(generics.ListAPIView):
     Products sorted by price | visit_count | created_at
     """
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
     serializer_class = ProductSerializer
     pagination_class = ProductPagination
     filter_backends = [
@@ -96,7 +97,7 @@ class CategoryListAPIView(generics.ListAPIView):
     Return list of top-level categories (parent=null) with prefetching of subcategories and products
     """
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
     serializer_class = CategorySerializer
 
     def get_queryset(self):
@@ -121,7 +122,7 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
     Retrieve product details by slug and increment visit counts
     """
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     lookup_field = "slug"
@@ -184,6 +185,7 @@ class FeedbackCreateAPIView(generics.CreateAPIView):
     Create feedbacks on selected product using product id
     """
 
+    permission_classes = [IsAuthenticated]
     serializer_class = FeedbackSerializer
 
     @swagger_auto_schema(
@@ -207,6 +209,8 @@ class LikeToggleCreateAPIView(APIView):
     """
     Like & Unlike a product
     """
+
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_id="Toggle likes",

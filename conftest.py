@@ -25,11 +25,22 @@ from product.models import (
 User = get_user_model()
 RAW_PASSWORD = "edrQWE451"
 faker = Faker()
+client = APIClient()
 
 
 @pytest.fixture
-def api_client(db):
-    return APIClient()
+def auth_client(sample_active_user):
+    """
+    Return an authenticated API client | user
+    """
+    api_client = client
+
+    api_client.force_authenticate(user=sample_active_user)
+
+    return (
+        api_client,
+        sample_active_user,
+    )
 
 
 @pytest.fixture(autouse=True, scope="session")

@@ -6,7 +6,7 @@ from users.models import CustomUser
 
 class CustomUserCreateSerializer(UserCreateSerializer):
     """
-    cutoms user registration serializer
+    Cutom user-register serializer
     """
 
     username = serializers.CharField(required=False)

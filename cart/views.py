@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import F, Prefetch
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, status
@@ -7,36 +8,59 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from cart.models import CartItem, Order, OrderItem
-from cart.serializers import CartItemSerializer
+from cart.serializers import (
+    CartSerializer,
+    CheckoutSerializer,
+    OrderSerializer,
+)
 
 
-class CartCreateAPIView(generics.CreateAPIView):
-    """Create cart items"""
+class CartListCreateAPIView(generics.ListCreateAPIView):
+    """
+    List & Create user cart items using the given product ID
+    """
 
     permission_classes = [IsAuthenticated]
-    serializer_class = CartItemSerializer
+    serializer_class = CartSerializer
+
+    def get_queryset(self):
+        """
+        Return last created cart item
+        """
+        cart = CartItem.objects.filter(user=self.request.user).select_related("product")
+        return cart.order_by("-created_at")
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
     @swagger_auto_schema(
-        operation_summary="Create cart items",
-        operation_description="Create cart items using product ID",
-        request_body=CartItemSerializer,
+        operation_summary="Get user cart items",
+        operation_description="Returns list of current user's cart items with product info",
         responses={
-            201: CartItemSerializer(),
-            401: "Unauthorized",
-            400: "Bad request",
+            200: CartSerializer(many=True),
+        },
+        tags=["Cart"],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="Add or remove items in cart",
+        operation_description="Add a product to the cart or remove the products quantity ",
+        request_body=CartSerializer,
+        responses={
+            201: CartSerializer(),
+            400: "Validation error",
         },
         tags=["Cart"],
     )
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
 
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
 
 class ClearCartAPIView(APIView):
     """
-    Allow authenticated users to clear all items from their cart
+    Clear user cart
     """
 
     permission_classes = [IsAuthenticated]
@@ -54,11 +78,9 @@ class ClearCartAPIView(APIView):
         },
         tags=["Cart"],
     )
-    def post(self, request, *args, **kwargs):
-        user_cart_contents = CartItem.objects.filter(user=request.user)
-
-        if user_cart_contents.exists():
-            user_cart_contents.delete()
+    def delete(self, request, *args, **kwargs):
+        deleted, _ = CartItem.objects.filter(user=request.user).delete()
+        if deleted:
             return Response(
                 status=status.HTTP_204_NO_CONTENT,
             )
@@ -70,106 +92,227 @@ class ClearCartAPIView(APIView):
         )
 
 
-class ShoppingCartListAPIView(generics.ListAPIView):
-    """
-    Retrieves list of cart items associated with the authenticated user
-    """
-
-    serializer_class = CartItemSerializer
-
-    @swagger_auto_schema(
-        operation_summary="Car list",
-        operation_description="Display user cart items",
-        responses={
-            200: CartItemSerializer(many=True),
-            401: "Unauthorized",
-        },
-        tags=["Cart"],
-    )
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
-
-    def get_queryset(self):
-        return CartItem.objects.filter(user=self.request.user)
-
-
 class CheckoutAPIView(APIView):
-    """Start checkout process"""
+    """
+    Start the checkout process with partial fulfillment support
+
+    Function:
+
+    1. Fetch active cart items for the authenticated user
+    2. Compare cart item quantities to available product stock
+    3. Create an Order instance for the user
+    4. Create OrderItem instances from the cart items that have sufficient stock
+    5. Deduct stock for processed items and remove them from the cart
+    6. Return a response indicating processed and skipped items
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = CheckoutSerializer
 
     @swagger_auto_schema(
-        operation_summary="Checkout and create an order",
+        operation_summary="Start checkout process",
         operation_description=(
-            "Takes all items from the authenticated user's cart, ",
-            "checks stock availability, creates an order and order items, ",
-            "updates product stock, and clears the cart. ",
-            "If stock is insufficient or cart is empty, returns an error.",
+            "Processes the authenticated user's cart items into an Order and OrderItems "
+            "Only items with sufficient stock are included "
+            "Stock is reduced for processed items, and they are removed from the cart"
+        ),
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["address"],
+            properties={
+                "address": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Shipping address for the order",
+                ),
+            },
         ),
         responses={
             201: openapi.Response(
-                description="Order successfully created",
-                examples={
-                    "application/json": {
-                        "detail": "Order created with success!",
-                        "order_id": 1,
-                        "status": "pending",
-                    }
-                },
+                description="Order created ",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(
+                            type=openapi.TYPE_STRING, description="Success message"
+                        ),
+                        "order_id": openapi.Schema(
+                            type=openapi.TYPE_INTEGER,
+                            description="ID of the created order",
+                        ),
+                        "status": openapi.Schema(
+                            type=openapi.TYPE_STRING, description="Order status"
+                        ),
+                        "items": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    "product": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "quantity": openapi.Schema(
+                                        type=openapi.TYPE_INTEGER
+                                    ),
+                                    "price": openapi.Schema(type=openapi.TYPE_STRING),
+                                },
+                            ),
+                            description="Processed items in the order",
+                        ),
+                        "skipped_items": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(type=openapi.TYPE_STRING),
+                            description="Items skipped due to insufficient stock (optional)",
+                        ),
+                    },
+                ),
             ),
             400: openapi.Response(
-                description="Bad request - cart empty or insufficient stock",
-                examples={
-                    "application/json": {"detail": "Not enough stock for Product A"}
-                },
+                description="Cart empty or all items have insufficient stock",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "detail": openapi.Schema(type=openapi.TYPE_STRING),
+                        "items": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(type=openapi.TYPE_STRING),
+                            description="Items that could not be processed",
+                        ),
+                    },
+                ),
             ),
         },
+        tags=["Cart"],
     )
     @transaction.atomic
     def post(self, request, *args, **kwargs):
-        user_shopping_cart = CartItem.objects.select_related("product").filter(
-            user=request.user
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        shipping_address = serializer.validated_data["address"]
+
+        # user cart items
+        active_cart_items = (
+            CartItem.objects.select_related("product")
+            .select_for_update()
+            .filter(user=request.user)
         )
 
-        if not user_shopping_cart.exists():
+        # raise error if no related cart found
+        if not active_cart_items.exists():
+            return Response(
+                {"detail": "Cart is empty"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        insufficient_stock = []
+        order_total = 0
+        valid_order_items = []
+
+        for cart in active_cart_items:
+            product = cart.product
+
+            # collect cart items with insufficient stock and skip them
+            if product.stock < cart.quantity:
+                insufficient_stock.append(
+                    f"{product.title} (available: {product.stock}, requested: {cart.quantity})"
+                )
+                continue
+
+            # total products amount
+            order_total += product.price * cart.quantity
+            valid_order_items.append(
+                {
+                    "product": product,
+                    "quantity": cart.quantity,
+                    "price_at_purchase": product.price,
+                }
+            )
+
+        if not valid_order_items:
             return Response(
                 {
-                    "detail": "Cart is empty",
+                    "detail": "Insufficient amount in stock",
+                    "items": insufficient_stock,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         order = Order.objects.create(
             user=request.user,
+            shipping_address=shipping_address,
+            total_amount=order_total,  # total prices
         )
-        for cart in user_shopping_cart:
-            product = cart.product
 
-            if product.stock < cart.quantity:
-                return Response(
-                    {
-                        "detail": f"Not enough stock for {product.title}",
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
+        order_items = []
+        for item in valid_order_items:
+            product = item["product"]
+            quantity = item["quantity"]
+
+            product.stock = F("stock") - quantity
+            product.save(update_fields=["stock"])
+            product.refresh_from_db()
+
+            order_items.append(
+                OrderItem(
+                    order=order,
+                    product=product,
+                    quantity=quantity,
+                    price_at_purchase=item["price_at_purchase"],
                 )
-
-            product.stock -= cart.quantity
-            product.save()
-
-            # create order-item
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                quantity=cart.quantity,
-                price_at_purchase=product.price,
             )
+        OrderItem.objects.bulk_create(order_items)
 
-        # reset cart
-        user_shopping_cart.delete()
+        processed_products = [item["product"] for item in valid_order_items]
+
+        CartItem.objects.filter(
+            user=request.user,
+            product__in=processed_products,
+        ).delete()
+
+        response_data = {
+            "detail": "Order created!",
+            "order_id": order.id,
+            "status": order.status,
+            "items": [
+                {
+                    "product": item.product.title,
+                    "quantity": item.quantity,
+                    "price": f"{item.price_at_purchase:,.0f}",
+                }
+                for item in order_items
+            ],
+        }
+
+        if insufficient_stock:
+            response_data["skipped_items"] = insufficient_stock
 
         return Response(
-            {
-                "detail": "Order created with success!",
-                "order_id": order.id,
-                "status": order.status,
-            },
+            response_data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class OrderListAPIView(generics.ListAPIView):
+    """
+    List all orders of the authenticated user along with associated order items.
+    Each order includes its items and product details.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrderSerializer
+
+    def get_queryset(self):
+        return Order.objects.filter(user=self.request.user).prefetch_related(
+            Prefetch(
+                "order_items", queryset=OrderItem.objects.select_related("product")
+            )
+        )
+
+    @swagger_auto_schema(
+        operation_summary="List user orders",
+        operation_description="Returns all orders for the authenticated user with detailed order items",
+        responses={
+            200: OrderSerializer(many=True),
+            401: openapi.Response(description="Unauthorized"),
+        },
+        tags=["Orders"],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)

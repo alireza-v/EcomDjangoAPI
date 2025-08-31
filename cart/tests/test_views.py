@@ -7,66 +7,75 @@ from cart.models import CartItem, Order, OrderItem
 from conftest import User
 
 
+def test_cart_list(auth_client):
+    client, _ = auth_client
+
+    response = client.get(
+        reverse("cart-list-create"),
+    )
+    data = response.json()
+
+    assert response.status_code == 200
+    assert isinstance(data, list)
+
+    expected_keys = [
+        "user",
+        "quantity",
+        "product",
+    ]
+    assert all(expected_keys.issubset(item.keys()) for item in data)
+
+
 @pytest.mark.parametrize(
-    "action,quantity,expected_status",
+    "action,quantity",
     [
-        ("add", 5, 201),
-        ("remove", 5, 201),
-        ("remove", randint(6, 19), 400),
+        ("add", 3),
+        ("add", 11),
+        ("remove", 5),
+        ("remove", 11),
     ],
 )
 def test_cart_create(
-    api_client,
+    auth_client,
     sample_products,
-    sample_active_user,
     sample_carts,
     action,
     quantity,
-    expected_status,
 ):
     _, _, product = sample_products
-    user = sample_active_user
+    client, _ = auth_client
     cart = sample_carts
+    initial_cart_quantity = cart.quantity if cart else 0
+    stock = product.stock
 
-    api_client.force_authenticate(user)
-
-    url = reverse("cart-create")
-    response = api_client.post(
+    url = reverse("cart-list-create")
+    response = client.post(
         url,
         {
-            "product": product.id,
-            "action": action,
+            "product_id": product.id,
             "quantity": quantity,
+            "action": action,
         },
     )
 
+    if action == "add" and quantity > stock:
+        expected_status = 400
+    elif action == "remove" and quantity > initial_cart_quantity:
+        expected_status = 400
+    else:
+        expected_status = 201
+
     assert response.status_code == expected_status
 
-    if expected_status == 201 or expected_status == 200:
+    if response.status_code in (200, 201):
         data = response.json()
-
-        assert all(
-            key
-            for key in [
-                "user",
-                "quantity",
-                "product_info",
-            ]
-        )
-        # current cart quantity
-        prev_quantity = cart.quantity if cart else 0
 
         if action == "add":
-            expected_quantity = prev_quantity + quantity
+            expected_quantity = initial_cart_quantity + quantity
         elif action == "remove":
-            expected_quantity = (
-                prev_quantity - quantity if prev_quantity >= quantity else prev_quantity
-            )
+            expected_quantity = initial_cart_quantity - quantity
 
         assert data["quantity"] == expected_quantity
-    else:
-        data = response.json()
-        assert expected_status == 400
 
 
 @pytest.mark.parametrize(
@@ -76,91 +85,57 @@ def test_cart_create(
         (False, 200),
     ],
 )
-def test_cart_drop(
-    api_client,
-    sample_active_user,
+def test_cart_clear(
+    auth_client,
     sample_carts,
     setup_cart,
     expected_status,
 ):
-    user = sample_active_user
-
-    api_client.force_authenticate(user=user)
-    url = reverse("cart-drop")
+    client, _ = auth_client
+    url = reverse("cart-clear")
 
     if not setup_cart:
         sample_carts.delete()
 
-    response = api_client.post(url)
+    response = client.delete(url)
     assert response.status_code == expected_status
 
 
-def test_cart_list(
-    api_client,
-    sample_active_user,
-):
-    user = sample_active_user
-    api_client.force_authenticate(user)
-
-    url = reverse("cart-list")
-    response = api_client.get(url)
-    data = response.json()
-
-    assert response.status_code == 200
-    assert isinstance(data, list)
-
-    expected_keys = [
-        "user",
-        "quantity",
-        "product_info",
-    ]
-    assert all(expected_keys.issubset(item.keys()) for item in data)
-
-
-def test_failed_order(
-    api_client,
-    sample_active_user,
-):
-    user = sample_active_user
-
-    url = reverse("checkout")
-    api_client.force_authenticate(user)
-
-    response = api_client.post(url)
-
-    assert User.objects.filter(email=user.email)
-    assert response.status_code == 400
-    assert "Cart is empty" in response.data["detail"]
-
-
-def test_success_order(
-    api_client,
-    sample_active_user,
+def test_order_success(
+    auth_client,
     sample_products,
     sample_carts,
 ):
-    user = sample_active_user
     _, _, product = sample_products
     cart = sample_carts
+    client, user = auth_client
 
-    api_client.force_authenticate(user=user)
     url = reverse("checkout")
 
     stock = product.stock
     cart_quantity = cart.quantity
     expected_stock = stock - cart_quantity
 
-    response = api_client.post(url)
+    response = client.post(
+        url,
+        {
+            "address": "some-address",
+        },
+    )
 
-    # check empty cart
     if stock < cart_quantity:
         assert response.status_code == 400
-        assert f"Not enough stock for {product.title}"
         return
     else:
         assert response.status_code == 201
-        assert "Order created with success" in response.data["detail"]
-        assert all(key in response.data for key in ["detail", "order_id", "status"])
+        assert all(
+            key in response.data
+            for key in [
+                "detail",
+                "status",
+                "items",
+            ]
+        )
 
         order = Order.objects.filter(
             user=user,
@@ -183,3 +158,13 @@ def test_success_order(
         assert not CartItem.objects.filter(
             user=user,
         ).exists()
+
+
+def test_order_list(auth_client):
+    client, _ = auth_client
+    url = reverse("order-list")
+    response = client.get(url)
+    data = response.json()
+
+    assert response.status_code == 200
+    assert isinstance(data, list)

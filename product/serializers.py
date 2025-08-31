@@ -12,17 +12,21 @@ from product.models import (
 )
 
 
-class BaseSerializer(ModelSerializer):
+class BaseSerializer(serializers.HyperlinkedModelSerializer):
     """
-    Remove fields with null values from response
+    Remove null values from response
     """
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
-        return {k: v for k, v in rep.items() if v is not None}
+        return {k: v for k, v in rep.items() if v not in (None, "", [], {})}
 
 
 class ProductSerializer(BaseSerializer):
+    url = serializers.HyperlinkedIdentityField(
+        view_name="product-detail-api",
+        lookup_field="slug",
+    )
     price = serializers.SerializerMethodField()
     features = serializers.SerializerMethodField()
     avg_rating = serializers.SerializerMethodField()
@@ -31,11 +35,13 @@ class ProductSerializer(BaseSerializer):
         model = Product
         fields = [
             "id",
+            "stock",
             "title",
             "slug",
             "visit_count",
             "price",
             "features",
+            "url",
             "main_image",
             "description",
             "slug",
@@ -61,7 +67,7 @@ class ProductSerializer(BaseSerializer):
         return getattr(obj, "avg_rating", 0) or 0
 
 
-class CategorySerializer(ModelSerializer):
+class CategorySerializer(BaseSerializer):
     products_preview = serializers.SerializerMethodField()
     subcategories = serializers.SerializerMethodField()
 

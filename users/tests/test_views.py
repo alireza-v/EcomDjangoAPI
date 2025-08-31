@@ -8,12 +8,13 @@ from faker import Faker
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from conftest import *
+from conftest import RAW_PASSWORD, client
 
 User = get_user_model()
 faker = Faker()
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "email,username,password",
     [
@@ -22,8 +23,7 @@ faker = Faker()
     ],
 )
 def test_user_registration(
-    db,
-    api_client,
+    client,
     email,
     username,
     password,
@@ -33,7 +33,7 @@ def test_user_registration(
         "username": username,
         "password": password,
     }
-    response = api_client.post(
+    response = client.post(
         "/auth/users/",
         payload,
     )
@@ -41,23 +41,22 @@ def test_user_registration(
     assert response.status_code == 201
     assert all(key in response.data for key in ("email", "username"))
 
-    # check password being hashed
+    # Ensure password being hashed in DB
     user = User.objects.get(email=email)
     assert user.check_password(password)
 
 
 def test_user_already_registered(
-    api_client,
-    sample_active_user,
+    auth_client,
 ):
-    user = sample_active_user
+    client, user = auth_client
 
     payload = {
         "email": user.email,
         "username": user.username,
         "password": RAW_PASSWORD,
     }
-    response = api_client.post(
+    response = client.post(
         "/auth/users/",
         payload,
     )
@@ -69,6 +68,7 @@ def test_user_already_registered(
     )
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "email,username",
     [
@@ -79,13 +79,12 @@ def test_user_already_registered(
     ],
 )
 def test_user_register_invalid_credentials(
-    db,
-    api_client,
+    client,
     email,
     username,
 ):
     short_password = "123"
-    response = api_client.post(
+    response = client.post(
         "/auth/users/",
         {
             "email": email,
@@ -99,7 +98,7 @@ def test_user_register_invalid_credentials(
 
 
 def test_activate_user(
-    api_client,
+    client,
     sample_inactive_user,
 ):
     user = sample_inactive_user
@@ -107,7 +106,7 @@ def test_activate_user(
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
 
-    response = api_client.get(f"/api/v1/auth/activate/{uid}/{token}/")
+    response = client.get(f"/api/v1/auth/activate/{uid}/{token}/")
 
     user.refresh_from_db()
 
@@ -117,7 +116,7 @@ def test_activate_user(
     assert User.objects.filter(email=user.email).exists()
 
 
-def test_user_invalid_activation_token(api_client, sample_inactive_user):
+def test_user_invalid_activation_token(client, sample_inactive_user):
     user = sample_inactive_user
 
     uid = urlsafe_base64_encode(force_bytes(user.pk))
@@ -130,7 +129,7 @@ def test_user_invalid_activation_token(api_client, sample_inactive_user):
             "token": token,
         },
     )
-    response = api_client.get(url)
+    response = client.get(url)
 
     assert response.status_code == 400
     assert response.data["error"] == "Invalid activation link"
@@ -140,13 +139,10 @@ def test_user_invalid_activation_token(api_client, sample_inactive_user):
     assert user.is_active is False
 
 
-def test_user_login(
-    api_client,
-    sample_active_user,
-):
-    user = sample_active_user
+def test_user_login(auth_client):
+    client, user = auth_client
 
-    response = api_client.post(
+    response = client.post(
         "/auth/jwt/create/",
         {
             "email": user.email,
@@ -164,6 +160,7 @@ def test_user_login(
     )
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "email,password,code",
     [
@@ -174,13 +171,12 @@ def test_user_login(
     ],
 )
 def test_user_login_failed(
-    db,
-    api_client,
+    client,
     email,
     password,
     code,
 ):
-    response = api_client.post(
+    response = client.post(
         "/auth/jwt/create/",
         {
             "email": email,
@@ -198,13 +194,10 @@ def test_user_login_failed(
         assert "This field may not be blank." in response.data["password"]
 
 
-def test_user_logout(
-    api_client,
-    sample_active_user,
-):
-    user = sample_active_user
+def test_user_logout(auth_client):
+    client, user = auth_client
 
-    login_response = api_client.post(
+    login_response = client.post(
         "/auth/jwt/create/",
         {
             "email": user.email,
@@ -215,11 +208,11 @@ def test_user_logout(
     access = login_response.data.get("access")
     refresh = login_response.data.get("refresh")
 
-    api_client.credentials(
+    client.credentials(
         HTTP_AUTHORIZATION=f"Bearer {access}",
     )
 
-    logout_response = api_client.post(
+    logout_response = client.post(
         "/auth/jwt/logout/",
         {
             "refresh": refresh,
@@ -229,7 +222,7 @@ def test_user_logout(
     assert logout_response.status_code == 200
     assert isinstance(logout_response.data, dict)
 
-    refresh_attempt = api_client.post(
+    refresh_attempt = client.post(
         "/auth/jwt/refresh/",
         {
             "refresh": refresh,
@@ -242,6 +235,7 @@ def test_user_logout(
         RefreshToken(refresh).check_blacklist()
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "email,code",
     [
@@ -250,11 +244,11 @@ def test_user_logout(
     ],
 )
 def test_reset_password_request(
-    api_client,
+    client,
     email,
     code,
 ):
-    response = api_client.post(
+    response = client.post(
         "/auth/users/reset_password/",
         {
             "email": email,
@@ -272,12 +266,11 @@ def test_reset_password_request(
     ],
 )
 def test_reset_password_confirm(
-    api_client,
-    sample_active_user,
+    auth_client,
     valid_token,
     expected_code,
 ):
-    user = sample_active_user
+    client, user = auth_client
 
     uid = urlsafe_base64_encode(force_bytes(user.pk))
 
@@ -286,7 +279,7 @@ def test_reset_password_confirm(
     else:
         token = "invalid-token"
 
-    response = api_client.post(
+    response = client.post(
         "/auth/users/reset_password_confirm/",
         {
             "uid": uid,

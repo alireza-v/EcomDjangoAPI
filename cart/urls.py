@@ -5,22 +5,22 @@ from cart import views
 urlpatterns = [
     path(
         "cart/",
-        views.CartCreateAPIView.as_view(),
-        name="cart-create",
+        views.CartListCreateAPIView.as_view(),
+        name="cart-list-create",
     ),
     path(
-        "cart/drop/",
+        "cart/clear/",
         views.ClearCartAPIView.as_view(),
-        name="cart-drop",
-    ),
-    path(
-        "carts/",
-        views.ShoppingCartListAPIView.as_view(),
-        name="cart-list",
+        name="cart-clear",
     ),
     path(
         "",
         views.CheckoutAPIView.as_view(),
         name="checkout",
+    ),
+    path(
+        "orders/",
+        views.OrderListAPIView.as_view(),
+        name="order-list",
     ),
 ]

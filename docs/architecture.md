@@ -40,8 +40,10 @@ Manages cart-related functionality:
 ---
 
 ### 📄 **.env**
-Example environment variables file for sensitive configurations, including:
+Example environment variables file for sensitive configurations, including(the important ones):
 - `SECRET_KEY`
 - `DATABASE_URL`
+- `SITE_NAME`
+- `DOMAIN`
 - `EMAIL_HOST_USER`
 - `EMAIL_HOST_PASSWORD`
