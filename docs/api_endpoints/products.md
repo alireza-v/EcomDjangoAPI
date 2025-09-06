@@ -50,18 +50,22 @@
 
 ### 💬❤️ Feedback & Likes
 
-- **POST `/api/v1/products/feedbacks/`**
-  Submit feedback for a product
-  **Authentication:** Required
+- **GET/POST `/api/v1/products/<int:product_id>/feedbacks/`**
+  List & Create feedback on a product
+  **Authentication:**
+  - GET not required
+  - POST required
 
-  **Request body**
-  - `product` (int, required)
-  - `description` (string, required)
-  - `rating` (int, min=1, max=5, optional,default=1)
+  **Request body(POST)**
+  - `comment` (string, required)
+  - `rate` (int, min=1, max=5, optional,default=1)
+
+  **Param(GET)**
+  - `product_id(int)`
 
   **Responses**
   - 201 Created
-  - 400 Bad Request
+  - 200 OK
   - 401 Unauthorized
 
 - **POST `/api/v1/products/likes/`**

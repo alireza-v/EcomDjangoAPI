@@ -1,22 +1,33 @@
 from django.db import IntegrityError, transaction
-from django.db.models import Avg, F
+from django.db.models import Avg, F, Q
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import filters, generics, status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework import (
+    filters,
+    generics,
+    permissions,
+    status,
+)
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from product.filters import ProductFilter
-from product.models import Category, Like, Product
-from product.pagination import ProductPagination
+from product.models import (
+    Category,
+    Feedback,
+    Like,
+    Product,
+)
+from product.ordering import CustomOrderingFilter
+from product.pagination import FeedbackPagination, ProductPagination
 from product.serializers import (
     CategorySerializer,
     FeedbackSerializer,
     LikeSerializer,
+    ProductDetailSerializer,
     ProductSerializer,
 )
 
@@ -29,12 +40,12 @@ class ProductListAPIView(generics.ListAPIView):
     Products sorted by price | visit_count | created_at
     """
 
-    permission_classes = [AllowAny]
+    permission_classes = [permissions.AllowAny]
     serializer_class = ProductSerializer
     pagination_class = ProductPagination
     filter_backends = [
         DjangoFilterBackend,
-        filters.OrderingFilter,
+        CustomOrderingFilter,
     ]
     filterset_class = ProductFilter
     ordering_fields = [
@@ -42,17 +53,30 @@ class ProductListAPIView(generics.ListAPIView):
         "visit_count",
         "created_at",
     ]
+    ordering = ["-visit_count"]
 
     def get_queryset(self):
         """
-        Return products by category slug passed as query param:
-        ?category=<str:slug>
+        Return products under the given  category identifier(slug)
+        Example: ?category = str:slug
         """
+
         qs = Product.objects.annotate(avg_rating=Avg("product_feedbacks__rating"))
-        category_slug = self.request.query_params.get("category")
+
+        query = self.request.query_params.get("q", "")
+        category_slug = self.request.query_params.get("category", "")
+
+        # search products using title, slug, category title
+        if query:
+            qs = qs.filter(
+                Q(title__icontains=query)
+                | Q(slug__icontains=query)
+                | Q(category__title__icontains=query)
+            )
 
         if category_slug:
             qs = qs.filter(category__slug=category_slug)
+
         return qs
 
     @swagger_auto_schema(
@@ -97,7 +121,7 @@ class CategoryListAPIView(generics.ListAPIView):
     Return list of top-level categories (parent=null) with prefetching of subcategories and products
     """
 
-    permission_classes = [AllowAny]
+    permission_classes = [permissions.AllowAny]
     serializer_class = CategorySerializer
 
     def get_queryset(self):
@@ -122,9 +146,9 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
     Retrieve product details by slug and increment visit counts
     """
 
-    permission_classes = [AllowAny]
+    permission_classes = [permissions.AllowAny]
     queryset = Product.objects.all()
-    serializer_class = ProductSerializer
+    serializer_class = ProductDetailSerializer
     lookup_field = "slug"
     lookup_url_kwarg = "slug"
 
@@ -180,13 +204,59 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
             )
 
 
-class FeedbackCreateAPIView(generics.CreateAPIView):
-    """
-    Create feedbacks on selected product using product id
-    """
+class FeedbackListCreateAPIView(generics.ListCreateAPIView):
+    """List & Create feedbacks by product_id:int"""
 
-    permission_classes = [IsAuthenticated]
     serializer_class = FeedbackSerializer
+    pagination_class = FeedbackPagination
+    filter_backends = [
+        filters.OrderingFilter,
+    ]
+    ordering_fields = [
+        "created_at",
+        "rating",
+    ]
+    ordering = ["-rating"]
+
+    def get_queryset(self):
+        product_id = self.kwargs.get("product_id")
+
+        return Feedback.objects.filter(product_id=product_id)
+
+    def perform_create(self, serializer):
+        product_id = self.kwargs.get("product_id")
+        product = get_object_or_404(Product, id=product_id)
+
+        serializer.save(
+            user=self.request.user,
+            product=product,
+        )
+
+    def get_permissions(self):
+        """Authentication method only applied to POST method"""
+        if self.request.method == "POST":
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
+    @swagger_auto_schema(
+        operation_summary="Feedback list",
+        operation_description="List feedbacks by the given kwargs: <id:product_id>",
+        manual_parameters=[
+            openapi.Parameter(
+                name="product_id",
+                in_=openapi.IN_PATH,
+                description="product identifier e.g. id",
+                type=openapi.TYPE_INTEGER,
+            ),
+        ],
+        responses={
+            200: FeedbackSerializer(many=True),
+            401: openapi.Response(description="Unauthorized"),
+        },
+        tags=["Feedback"],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary="Create Feedback",
@@ -194,15 +264,13 @@ class FeedbackCreateAPIView(generics.CreateAPIView):
         request_body=FeedbackSerializer,
         responses={
             201: FeedbackSerializer,
-            400: "Bad request",
+            400: openapi.Response(description="Bad request"),
+            401:openapi.Response(description="Unauthorized"),
         },
         tags=["Feedback"],
     )
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
 
 
 class LikeToggleCreateAPIView(APIView):
@@ -210,7 +278,7 @@ class LikeToggleCreateAPIView(APIView):
     Like & Unlike a product
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     @swagger_auto_schema(
         operation_id="Toggle likes",

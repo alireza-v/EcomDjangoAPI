@@ -31,6 +31,7 @@ class CartItem(TimestampModel):
     )
 
     class Meta:
+        ordering = ["-created_at"]
         verbose_name = "سبد خرید"
         verbose_name_plural = "سبد خرید"
         constraints = [
@@ -135,9 +136,9 @@ class OrderItem(TimestampModel):
     )
 
     class Meta:
+        ordering = ["-created_at"]
         verbose_name = "مقدار سفارش"
         verbose_name_plural = "مقادیر سفارش"
-        ordering = ["-created_at"]
 
     def __str__(self):
         return (

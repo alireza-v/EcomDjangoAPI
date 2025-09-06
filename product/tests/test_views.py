@@ -3,34 +3,45 @@ import random
 import pytest
 from django.urls import reverse
 
+from conftest import faker
 from product.models import Feedback, Like
+from product.serializers import FeedbackSerializer
 
 
 def test_products(
     auth_client,
     sample_products,
-    sample_features,
 ):
-    _, _, product = sample_products
-    features = [sample_features]
+    """Fetch products"""
+
+    _ = sample_products["products"][0]
+
     client, _ = auth_client
 
-    url = reverse("product-list-api")
+    url = reverse("product-list")
     response = client.get(url)
 
     assert response.status_code == 200
     assert isinstance(response.data, dict)
 
-    expected = ["count", "next", "previous", "results"]
+    expected = [
+        "count",
+        "next",
+        "previous",
+        "results",
+    ]
     for key in expected:
         assert key in response.data
 
 
-def test_select_product_with_slug(auth_client, sample_products):
-    _, _, product = sample_products
+def test_filter_by_category(
+    auth_client,
+    sample_products,
+):
     client, _ = auth_client
+    product = sample_products["products"][0]
 
-    url = reverse("product-list-api")
+    url = reverse("product-list")
     response = client.get(
         url,
         {
@@ -42,49 +53,54 @@ def test_select_product_with_slug(auth_client, sample_products):
 
 
 @pytest.mark.parametrize(
-    "param,value",
+    "param,value,expectation",
     [
-        ("min_price", lambda _: random.randint(10_000_000, 50_000_000)),
-        ("max_price", lambda _: random.randint(10_000_000, 50_000_000)),
-        ("wrong_param", "wrong-value"),
+        (
+            "min_price",
+            lambda _: random.randint(5_000_000, 15_000_000),
+            lambda product, value: int(product["price"]) >= value,
+        ),
+        (
+            "max_price",
+            lambda _: random.randint(20_000_000, 40_000_000),
+            lambda product, value: int(product["price"]) <= value,
+        ),
+        (
+            "in_stock",
+            lambda _: random.choice([True, False]),
+            lambda product, v: product["in_stock"] is v,
+        ),
     ],
 )
-def test_products_filtering(
-    auth_client,
-    sample_products,
-    sample_features,
-    param,
-    value,
-):
+def test_product_filtering(auth_client, sample_products, param, value, expectation):
+    """Filter products by the given parameters and validate results."""
+
     client, _ = auth_client
+    url = reverse("product-list")
+
     if callable(value):
         value = value(sample_products)
+        print(f"value: {value}")
 
-    url = reverse("product-list-api")
     response = client.get(url, {param: value})
 
     assert response.status_code == 200
 
-    data = response.data
-    results = data["results"]
+    results = response.json()["results"]
 
-    if results:
-        expected_fields = [
-            "title",
-            "slug",
-            "visit_count",
-            "price",
-            "features",
-        ]
-        assert isinstance(results, list)
-
-        for res in results:
-            for exp in expected_fields:
-                assert exp in res
+    if expectation:
+        if results:
+            assert all(expectation(product, value) for product in results), (
+                f"Filter {param}={value} returned wrong results: {results}"
+            )
+        else:
+            assert results == []
+    else:
+        assert len(results) == len(sample_products)
 
 
 @pytest.mark.parametrize(
-    "sort_order,is_desc",
+    "order_field,is_desc",
     [
         ("price", False),
         ("-price", True),
@@ -94,22 +110,33 @@ def test_products_filtering(
         ("-created_at", True),
     ],
 )
-def test_products_sorted(
+def test_product_ordering(
     auth_client,
     sample_products,
-    sort_order,
+    order_field,
     is_desc,
 ):
-    _, _, _ = sample_products
-    url = reverse("product-list-api")
+    """
+    Ordering fields:
+        - price
+        - visit_count
+        - created_at
+    """
+
+    url = reverse("product-list")
     client, _ = auth_client
 
-    response = client.get(url, {"ordering": sort_order})
+    response = client.get(
+        url,
+        {
+            "ordering": order_field,
+        },
+    )
 
     assert response.status_code == 200
 
     results = response.json()["results"]
-    field = sort_order.lstrip("-")
+    field = order_field.lstrip("-")
     values = [item[field] for item in results]
 
     if is_desc:
@@ -122,11 +149,17 @@ def test_search_products(
     auth_client,
     sample_products,
 ):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
+
     client, _ = auth_client
 
-    url = reverse("product-list-api")
-    response = client.get(url, {"search": product.title})
+    url = reverse("product-list")
+    response = client.get(
+        url,
+        {
+            "q": product.title,
+        },
+    )
 
     assert response.status_code == 200
     results = response.json()["results"]
@@ -138,7 +171,7 @@ def test_search_products(
 def test_categories(auth_client, sample_products):
     client, _ = auth_client
 
-    url = reverse("category-list-api")
+    url = reverse("category-list")
     response = client.get(url)
     data = response.data
 
@@ -148,11 +181,11 @@ def test_categories(auth_client, sample_products):
 
 
 def test_product_detail(auth_client, sample_products):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
     client, _ = auth_client
 
     url = reverse(
-        "product-detail-api",
+        "product-detail",
         kwargs={
             "slug": product.slug,
         },
@@ -161,54 +194,98 @@ def test_product_detail(auth_client, sample_products):
     data = response.data
 
     assert response.status_code == 200
+    assert isinstance(response.data, dict)
     assert data["title"] == product.title
     assert data["description"] == product.description
 
 
-def test_feedback_create(auth_client, sample_products):
-    _, _, product = sample_products
-    client, user = auth_client
-
-    url = reverse(
-        "create-feedback",
-    )
-    response = client.post(
-        url,
-        {
-            "product": product.id,
-            "description": "Excellet product!",
-            "rating": 3,
-        },
-    )
-
-    assert response.status_code == 201
-    assert Feedback.objects.filter(user=user, product=product).exists()
-
-
-def test_invalid_feedback_create(
+@pytest.mark.parametrize(
+    "already_made_comment,exp_st_code",
+    [
+        (False, 201),
+        (True, 400),
+    ],
+)
+def test_feedback_create(
     auth_client,
     sample_products,
     sample_feedbacks,
+    already_made_comment,
+    exp_st_code,
 ):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
     client, user = auth_client
 
-    url = reverse("create-feedback")
+    if already_made_comment:
+        sample_feedbacks(
+            user=user,
+            product=product,
+        )
 
-    assert Feedback.objects.filter(user=user).exists()
-
-    response = client.post(
-        url,
-        {
-            "product": product.id,
-            "description": "Excellet product!",
-            "rating": 3,
-        },
+    url = reverse(
+        "list-create-feedback",
+        kwargs={"product_id": product.id},
     )
-    data = response.json()
+    payload = {
+        "comment": faker.text(max_nb_chars=50),
+        "rate": random.randint(1, 5),
+    }
+    response = client.post(url, payload)
 
-    assert response.status_code == 400
-    assert data["non_field_errors"][0] == "You already made a review."
+    feedback_count = Feedback.objects.filter(
+        user=user,
+        product=product,
+    ).count()
+
+    assert response.status_code == exp_st_code
+
+    # In either case, the counting should be 1
+    assert feedback_count == 1
+
+    expected_keys = ["user", "rate", "comment"]
+
+    if exp_st_code == 201:
+        missing_keys = set(expected_keys) - set(
+            response.data.keys()
+        )  # Only the intended keys are present
+        assert not missing_keys, f"Missing keys in response: {missing_keys}"
+
+
+@pytest.mark.parametrize(
+    "p_id",
+    [
+        ("valid"),
+        (1000000),
+    ],
+)
+def test_feedback_list(
+    sample_products,
+    auth_client,
+    sample_feedbacks,
+    p_id,
+):
+    product = sample_products["products"][0]
+    client, _ = auth_client
+
+    if p_id == "valid": # valid product_id 
+        p_id = product.id
+
+    url = reverse(
+        "list-create-feedback",
+        kwargs={"product_id": p_id},
+    )
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert isinstance(response.data, dict)
+    result = response.data["results"]
+    if result:
+        assert isinstance(result[0], list)
+        expected_keys = ["user", "rate"]
+        for key in expected_keys:
+            assert key in expected_keys
+    else:
+        assert not result
 
 
 @pytest.mark.parametrize(
@@ -225,7 +302,7 @@ def test_toggle_likes(
     like_exists_before,
     expected_status,
 ):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
     client, user = auth_client
 
     url = reverse("like-toggle")

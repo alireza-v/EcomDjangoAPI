@@ -53,6 +53,7 @@ class Category(TimestampModel):
         return self.title
 
     def save(self, *args, **kwargs):
+        """slug field populated from the title"""
         if not self.slug:
             self.slug = slugify(
                 self.title,
@@ -115,6 +116,11 @@ class Product(TimestampModel):
         default=0,
         null=True,
     )
+    brand = models.CharField(
+        verbose_name=_("برند"),
+        max_length=100,
+        db_index=True,
+    )
     slug = models.SlugField(
         _("شناسه"),
         max_length=255,
@@ -125,7 +131,7 @@ class Product(TimestampModel):
     )
 
     class Meta:
-        ordering = ["-visit_count"]
+        ordering = ["-visit_count", "-created_at"]
         verbose_name = _("محصول")
         verbose_name_plural = _("محصولات")
 
@@ -137,10 +143,13 @@ class Product(TimestampModel):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(
-                self.title,
-                allow_unicode=True,
-            )
+            base_slug = slugify(self.title, allow_unicode=True)
+            slug = base_slug
+            counter = 1
+            while Product.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -152,13 +161,13 @@ class FeatureValue(TimestampModel):
         Product,
         verbose_name=_("محصول"),
         on_delete=models.CASCADE,
-        related_name="feature_values",
+        related_name="product_features",
     )
     feature = models.ForeignKey(
         FeatureName,
         verbose_name=_("عنوان ویژگی"),
         on_delete=models.CASCADE,
-        related_name="product_values",
+        related_name="feature_values",
     )
     value = models.CharField(
         verbose_name=_("مقدار"),
@@ -166,6 +175,14 @@ class FeatureValue(TimestampModel):
     )
 
     class Meta:
+        """
+        Constraint (uniqueness):
+            - product
+            - feature
+            - value
+        """
+
+        ordering = ["-id"]
         verbose_name = "مقدار ویژگی محصول"
         verbose_name_plural = "مقادیر ویژگی های محصول"
         constraints = [
@@ -197,6 +214,9 @@ class ProductImage(TimestampModel):
         blank=True,
     )
 
+    class Meta:
+        ordering = ["-created_at"]
+
     def __str__(self):
         return f"{self.product.title} - {self.id}"
 
@@ -217,13 +237,17 @@ class Feedback(TimestampModel):
     description = models.TextField(_("توضیحات"))
     rating = models.PositiveSmallIntegerField(
         _("امتیاز"),
-        null=True,
     )
 
     class Meta:
+        """
+        Constraint (uniqueness):
+            - User may comment on product once
+        """
+
         verbose_name = "بازخورد"
         verbose_name_plural = "بازخورد ها"
-        ordering = ["-id"]
+        ordering = ["-rating"]
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "product"], name="unique_user_product"
@@ -247,6 +271,11 @@ class Like(TimestampModel):
     )
 
     class Meta:
+        """
+        constraint (uniqueness):
+            - Being applied to "user" & "product" to prevent duplicate likes
+        """
+
         verbose_name = "مورد علاقه"
         verbose_name_plural = "مورد علاقه ها"
 

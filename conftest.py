@@ -1,5 +1,5 @@
 """
-The centralized configuration file for pytest. It is used to define fixtures, hooks, and shared test setup that can be reused across multiple test modules in the project.
+The centralized configuration file which is to define fixtures, hooks, and shared test setup that can be reused across multiple test modules in the project.
 """
 
 import random
@@ -31,7 +31,7 @@ client = APIClient()
 @pytest.fixture
 def auth_client(sample_active_user):
     """
-    Return an authenticated API client | user
+    Return an authenticated API client & User
     """
     api_client = client
 
@@ -73,28 +73,39 @@ def sample_inactive_user(db):
 
 @pytest.fixture
 def sample_products(db):
+    # Parent category
     parent = Category.objects.create(
         title="Electronics",
         visit_count=random.randint(0, 50),
     )
-    child = Category.objects.create(
-        title="Mobile Phones",
-        parent=parent,
-        visit_count=random.randint(0, 50),
-    )
-    product = Product.objects.create(
-        title="Samsung",
-        category=child,
-        price=round(random.uniform(1000.0, 3000.0), 2),
-        description="Product description!",
-        stock=random.randint(1, 10),
-        visit_count=random.randint(0, 50),
-    )
-    return (
-        parent,
-        child,
-        product,
-    )
+    # Child category
+    child_categories = []
+    for i in range(3):
+        child = Category.objects.create(
+            title=f"Mobile Phones {i + 1}",
+            parent=parent,
+            visit_count=random.randint(0, 10),
+        )
+        child_categories.append(child)
+
+    # Products
+    products = []
+    for i, child in enumerate(child_categories):
+        for j in range(5):
+            product = Product.objects.create(
+                title=f"Samsung {i + 1}-{j + 1}",
+                category=child,
+                price=round(random.uniform(10000, 3000), 2),
+                description="Product description!",
+                stock=random.randint(1, 10),
+                visit_count=random.randint(0, 10),
+            )
+            products.append(product)
+    return {
+        "parent": parent,
+        "child": child_categories,
+        "products": products,
+    }
 
 
 @pytest.fixture
@@ -110,7 +121,7 @@ def sample_features(
     sample_products,
     sample_feature_name,
 ):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
     feature_name = sample_feature_name
 
     feature = FeatureValue.objects.create(
@@ -123,7 +134,7 @@ def sample_features(
 
 @pytest.fixture
 def sample_images(db, sample_products):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
 
     image_file = SimpleUploadedFile(
         name="test_image.jpg",
@@ -142,15 +153,22 @@ def sample_feedbacks(
     sample_active_user,
     sample_products,
 ):
-    _, _, product = sample_products
+    def create_feedback(
+        user=None,
+        product=None,
+        **kwargs,
+    ):
+        user = sample_active_user
+        product = sample_products["products"][0]
 
-    feedback = Feedback.objects.create(
-        user=sample_active_user,
-        product=product,
-        description="Product feedback!",
-        rating=random.randint(1, 5),
-    )
-    return feedback
+        return Feedback.objects.create(
+            user=user,
+            product=product,
+            description=kwargs.get("description", faker.text(max_nb_chars=100)),
+            rating=kwargs.get("rating", random.randint(1, 5)),
+        )
+
+    return create_feedback
 
 
 @pytest.fixture
@@ -160,7 +178,7 @@ def sample_likes(
     sample_products,
 ):
     user = sample_active_user
-    _, _, product = sample_products
+    product = sample_products["products"][0]
 
     return Like.objects.create(
         user=user,
@@ -174,7 +192,7 @@ def sample_carts(
     sample_active_user,
     sample_products,
 ):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
     user = sample_active_user
 
     return CartItem.objects.create(
@@ -203,7 +221,7 @@ def sample_order_item(
     sample_products,
 ):
     order = sample_order
-    _, _, product = sample_products
+    product = sample_products["products"][0]
 
     return OrderItem.objects.create(
         order=order,

@@ -1,10 +1,11 @@
-from random import randint
-
 import pytest
 from django.urls import reverse
 
-from cart.models import CartItem, Order, OrderItem
-from conftest import User
+from cart.models import (
+    CartItem,
+    Order,
+    OrderItem,
+)
 
 
 def test_cart_list(auth_client):
@@ -42,7 +43,7 @@ def test_cart_create(
     action,
     quantity,
 ):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
     client, _ = auth_client
     cart = sample_carts
     initial_cart_quantity = cart.quantity if cart else 0
@@ -106,7 +107,7 @@ def test_order_success(
     sample_products,
     sample_carts,
 ):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
     cart = sample_carts
     client, user = auth_client
 

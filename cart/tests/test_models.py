@@ -8,7 +8,7 @@ def test_cart_creation(
 ):
     cart = sample_carts
     user = sample_active_user
-    _, _, product = sample_products
+    product = sample_products["products"][0]
 
     assert cart.user == user
     assert CartItem.objects.filter(user=user, product=product).exists()
@@ -32,7 +32,7 @@ def test_order_item_creation(
     sample_order_item,
     sample_active_user,
 ):
-    _, _, product = sample_products
+    product = sample_products["products"][0]
     order_item = sample_order_item
     user = sample_active_user
 

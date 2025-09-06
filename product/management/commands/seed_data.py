@@ -1,8 +1,6 @@
-import os
 import random
 
 from django.contrib.auth import get_user_model
-from django.core.files import File
 from django.core.management.base import BaseCommand
 from faker import Faker
 
@@ -12,7 +10,6 @@ from product.models import (
     FeatureValue,
     Feedback,
     Product,
-    ProductImage,
 )
 
 User = get_user_model()
@@ -22,17 +19,20 @@ fake = Faker("fa_IR")
 class Command(BaseCommand):
     help = "Seed the database with random data by necessary models"
 
+    brand_list = [
+        "سامسونگ",
+        "شیائومی",
+        "نوکیا",
+        "آنر",
+        "هواوی",
+    ]
+    memory_list = [
+        "128 گیگابایت",
+        "256 گیگابایت",
+        "512 گیگابایت",
+        "1 ترابایت",
+    ]
     features_list = [
-        (
-            "برند",
-            [
-                "اپل",
-                "سامسونگ",
-                "دل",
-                "اچ‌پی",
-                "لنوو",
-            ],
-        ),
         (
             "حافظه",
             [
@@ -90,14 +90,14 @@ class Command(BaseCommand):
             ),
         ]
 
-        user, created = User.objects.get_or_create(
-            email="admin@email.com",
-        )
-        if created:
-            user.set_password("123")
-            user.is_superuser = True
-            user.is_staff = True
-            user.save()
+        for i in range(1, 101):
+            user, created = User.objects.get_or_create(
+                email=f"active_user_{i}@example.com"
+            )
+            if created:
+                user.set_password("123!@#QWE")
+                user.is_active = True
+                user.save()
 
         for name, _ in self.features_list:
             FeatureName.objects.get_or_create(name=name)
@@ -106,8 +106,12 @@ class Command(BaseCommand):
 
         for subcat in subcategories:
             for i in range(5):
+                brand = random.choice(self.brand_list)
+                memory = random.choice(self.memory_list)
+
                 product = Product.objects.create(
-                    title=f"{subcat.title} مدل {i + 1}",
+                    title=f"گوشی {brand} ظرفیت {memory}",
+                    brand=brand,
                     category=subcat,
                     price=random.randint(10_000_000, 50_000_000),
                     description=fake.text(max_nb_chars=100),
@@ -115,58 +119,27 @@ class Command(BaseCommand):
                     visit_count=random.randint(1, 100),
                 )
 
+                # Assign random features
                 selected_features = random.sample(
                     self.features_list,
                     random.randint(2, 4),
                 )
                 for feature_name, values in selected_features:
-                    value = random.choice(values)
-                    FeatureValue.objects.get_or_create(
+                    FeatureValue.objects.create(
                         product=product,
                         feature=features_dict[feature_name],
-                        value=value,
+                        value=random.choice(values),
                     )
 
-                main_image_path = os.path.join(
-                    "static", f"product/images/{subcat.title}/image_{i + 1}.jpg"
-                )
-                if os.path.exists(main_image_path):
-                    with open(main_image_path, "rb") as image_file:
-                        product.main_image.save(
-                            f"{product.slug}_image_{i}.jpg",
-                            File(image_file),
-                            save=False,
-                        )
-
-                product.save()
-
-                for j in range(1, 4):
-                    alt_image_filename = f"alt_image_{j}.jpg"
-                    alt_image_path = os.path.join(
-                        "static",
-                        f"product/images/{subcat.title}/{alt_image_filename}",
+                # Random feedbacks from random users
+                users = list(User.objects.all())
+                feedback_users = random.sample(users, random.randint(5, 15))
+                for user in feedback_users:
+                    Feedback.objects.create(
+                        user=user,
+                        product=product,
+                        description=fake.text(max_nb_chars=50),
+                        rating=random.randint(1, 5),
                     )
-                    if os.path.exists(alt_image_path):
-                        with open(alt_image_path, "rb") as alt_file:
-                            ProductImage.objects.create(
-                                product=product,
-                                image=File(
-                                    alt_file, name=f"{product.slug}_alt_{j}.jpg"
-                                ),
-                            )
-
-                Feedback.objects.create(
-                    user=user,
-                    product=product,
-                    description=random.choice(
-                        [
-                            "خیلی عالی بود!",
-                            "از خریدم راضی هستم.",
-                            "میتوانست بهتر باشد.",
-                            "عملکرد فوق‌العاده!",
-                        ]
-                    ),
-                    rating=random.randint(3, 5),
-                )
 
         self.stdout.write(self.style.SUCCESS("seed data success!"))

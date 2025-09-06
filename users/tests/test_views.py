@@ -8,26 +8,61 @@ from faker import Faker
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from conftest import RAW_PASSWORD, client
+from conftest import RAW_PASSWORD
 
 User = get_user_model()
 faker = Faker()
 
 
-@pytest.mark.django_db
 @pytest.mark.parametrize(
-    "email,username,password",
+    "email,username,password,code",
     [
-        (faker.email(), faker.user_name(), faker.password(length=8)),
-        (faker.email(), "", faker.password(length=8)),
+        (
+            faker.email(),
+            faker.user_name(),
+            faker.password(length=8),
+            201,
+        ),
+        (
+            faker.email(),
+            "",
+            faker.password(length=8),
+            201,
+        ),
+        (
+            "active_user@email.com",
+            "active_user",
+            faker.password(length=8),
+            400,
+        ),
+        (
+            "active_user@email.com",
+            "active_user",
+            "123",
+            400,
+        ),
+        (
+            "active_user@email.com",
+            "active_user",
+            "",
+            400,
+        ),
     ],
 )
 def test_user_registration(
     client,
+    sample_active_user,
     email,
     username,
     password,
+    code,
 ):
+    """
+    Test user registration with valid & invalid input and expected output including:
+        - status code
+        - database state
+        - password hashing
+    """
     payload = {
         "email": email,
         "username": username,
@@ -38,89 +73,44 @@ def test_user_registration(
         payload,
     )
 
-    assert response.status_code == 201
-    assert all(key in response.data for key in ("email", "username"))
+    assert response.status_code == code
+    if code == 201:
+        assert all(key in response.data for key in ["email", "username"])
 
-    # Ensure password being hashed in DB
-    user = User.objects.get(email=email)
-    assert user.check_password(password)
+        user_created = User.objects.filter(email=email)
+        assert user_created.exists()
 
+        user_qs = user_created.first()
+        assert user_qs.check_password(password)
 
-def test_user_already_registered(
-    auth_client,
-):
-    client, user = auth_client
-
-    payload = {
-        "email": user.email,
-        "username": user.username,
-        "password": RAW_PASSWORD,
-    }
-    response = client.post(
-        "/auth/users/",
-        payload,
-    )
-
-    assert response.status_code == 400
-    assert (
-        "custom user with this email already exists."
-        in response.data.get("email")[0].lower()
-    )
+    elif code == 400:
+        assert any(key in response.data for key in ["email", "username", "password"])
 
 
-@pytest.mark.django_db
 @pytest.mark.parametrize(
-    "email,username",
+    "token_generator_function,code,result,is_active",
     [
-        ("bademail", "fake-user"),
-        ("test@email", ""),
-        ("", "some-user"),
-        ("example@email.com", "123"),
+        (
+            lambda user: default_token_generator.make_token(user),
+            200,
+            "Account activated",
+            True,
+        ),
+        (lambda user: "Invalid token", 400, "Invalid activation link", False),
     ],
 )
-def test_user_register_invalid_credentials(
-    client,
-    email,
-    username,
-):
-    short_password = "123"
-    response = client.post(
-        "/auth/users/",
-        {
-            "email": email,
-            "username": username,
-            "password": short_password,
-        },
-    )
-
-    assert response.status_code == 400
-    assert any(key in response.data for key in ("email", "password"))
-
-
-def test_activate_user(
+def test_user_activation(
     client,
     sample_inactive_user,
+    token_generator_function,
+    code,
+    result,
+    is_active,
 ):
     user = sample_inactive_user
 
     uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = default_token_generator.make_token(user)
-
-    response = client.get(f"/api/v1/auth/activate/{uid}/{token}/")
-
-    user.refresh_from_db()
-
-    assert response.status_code == 200
-    assert response.data["result"] == "Account activated"
-    assert user.is_active is True
-    assert User.objects.filter(email=user.email).exists()
-
-
-def test_user_invalid_activation_token(client, sample_inactive_user):
-    user = sample_inactive_user
-
-    uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = "invalid-token"
+    token = token_generator_function(user)
 
     url = reverse(
         "activation",
@@ -131,51 +121,49 @@ def test_user_invalid_activation_token(client, sample_inactive_user):
     )
     response = client.get(url)
 
-    assert response.status_code == 400
-    assert response.data["error"] == "Invalid activation link"
+    assert response.status_code == code
+    if code == 200:
+        assert response.data["result"] == result
+    else:
+        assert response.data["error"] == result
 
     user.refresh_from_db()
 
-    assert user.is_active is False
+    assert user.is_active is is_active
+    assert User.objects.filter(email=user.email).exists()
 
 
-def test_user_login(auth_client):
-    client, user = auth_client
-
-    response = client.post(
-        "/auth/jwt/create/",
-        {
-            "email": user.email,
-            "password": RAW_PASSWORD,
-        },
-    )
-
-    assert response.status_code == 200
-    assert all(
-        key in response.data
-        for key in (
-            "access",
-            "refresh",
-        )
-    )
-
-
-@pytest.mark.django_db
 @pytest.mark.parametrize(
-    "email,password,code",
+    "email,password,code,keys,error",
     [
-        ("email", "123", 401),
-        ("example@email", "123", 401),
-        ("example@email.com", "123", 401),
-        ("example@email.com", "", 400),
+        ("active_user@email.com", RAW_PASSWORD, 200, ["access", "refresh"], None),
+        (
+            "email",
+            "123",
+            401,
+            None,
+            "No active account found with the given credentials",
+        ),
+        (
+            "example@email",
+            "123",
+            401,
+            None,
+            "No active account found with the given credentials",
+        ),
+        (
+            "example@email.com",
+            "123",
+            401,
+            None,
+            "No active account found with the given credentials",
+        ),
+        ("example@email.com", "", 400, None, "This field may not be blank."),
     ],
 )
-def test_user_login_failed(
-    client,
-    email,
-    password,
-    code,
-):
+def test_user_login(auth_client, email, password, code, keys, error):
+    client, _ = auth_client
+
     response = client.post(
         "/auth/jwt/create/",
         {
@@ -185,13 +173,14 @@ def test_user_login_failed(
     )
 
     assert response.status_code == code
-    if code == 401:
-        assert (
-            "No active account found with the given credentials"
-            in response.data["detail"]
-        )
-    if code == 400:
-        assert "This field may not be blank." in response.data["password"]
+
+    if code == 200:
+        assert all(key in response.data for key in keys)
+    else:
+        if code == 401:
+            assert error in response.data["detail"]
+        elif code == 400:
+            assert error in response.data["password"]
 
 
 def test_user_logout(auth_client):

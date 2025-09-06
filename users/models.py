@@ -38,7 +38,7 @@ class CustomUserManager(BaseUserManager):
 
 class TimestampModel(models.Model):
     """
-    Provide automatic timestamp tracking for all models
+    Timestamp tracking for all models
     """
 
     created_at = models.DateTimeField(

@@ -1,4 +1,5 @@
 from django.db.models import Avg
+from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 
@@ -24,22 +25,30 @@ class BaseSerializer(serializers.HyperlinkedModelSerializer):
 
 class ProductSerializer(BaseSerializer):
     url = serializers.HyperlinkedIdentityField(
-        view_name="product-detail-api",
+        view_name="product-detail",
         lookup_field="slug",
     )
-    price = serializers.SerializerMethodField()
+    price = serializers.DecimalField(
+        max_digits=12, decimal_places=2, coerce_to_string=False
+    )
+    price_formatted = serializers.SerializerMethodField()
     features = serializers.SerializerMethodField()
     avg_rating = serializers.SerializerMethodField()
+    in_stock = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = [
             "id",
             "stock",
+            "in_stock",
             "title",
             "slug",
+            "brand",
             "visit_count",
             "price",
+            "price_formatted",
             "features",
             "url",
             "main_image",
@@ -49,15 +58,11 @@ class ProductSerializer(BaseSerializer):
             "created_at",
         ]
 
-    def get_price(self, obj):
-        if obj:
-            return f"{obj.price:,.0f}"
-        return obj
+    def get_price_formatted(self, obj):
+        return f"{obj.price:,.0f}"
 
     def get_features(self, obj):
-        from product.serializers import FeatureValueSerializer
-
-        feature_qs = obj.feature_values.all()
+        feature_qs = obj.product_features.all()
         return FeatureValueSerializer(
             feature_qs,
             many=True,
@@ -65,6 +70,12 @@ class ProductSerializer(BaseSerializer):
 
     def get_avg_rating(self, obj):
         return getattr(obj, "avg_rating", 0) or 0
+
+    def get_in_stock(self, obj):
+        return obj.stock > 0
+
+    def get_created_at(self, obj):
+        return f"{obj.created_at:%Y-%m-%d %H:%M:%S}"
 
 
 class CategorySerializer(BaseSerializer):
@@ -75,7 +86,6 @@ class CategorySerializer(BaseSerializer):
         model = Category
         fields = [
             "title",
-            "slug",
             "products_preview",
             "subcategories",
         ]
@@ -139,55 +149,108 @@ class CategoryBreadcrumbSerializer(ModelSerializer):
         ]
 
 
-class FeedbackSerializer(ModelSerializer):
-    user = serializers.SerializerMethodField()
-    product = serializers.PrimaryKeyRelatedField(
+class FeedbackSerializer(BaseSerializer):
+    user = serializers.StringRelatedField()
+    product_id = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),
+        source="product",
         write_only=True,
+        required=False,
     )
-    product_value = serializers.SerializerMethodField()
-    rating = serializers.IntegerField(
+    product = serializers.SerializerMethodField()
+    rate = serializers.IntegerField(
         help_text="Rating from 1 to 5 stars",
         min_value=1,
         max_value=5,
+        source="rating",
     )
+    comment = serializers.CharField(source="description")
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
 
     class Meta:
         model = Feedback
         fields = [
-            "description",
-            "rating",
             "user",
+            "rate",
+            "comment",
+            "product_id",
+            "created_at",
             "product",
-            "product_value",
         ]
 
-    def get_user(self, obj):
-        return {
-            "id": obj.user.id,
-            "username": obj.user.username,
-            "email": obj.user.email,
-        }
-
-    def get_product_value(self, obj):
+    def get_product(self, obj):
         if obj.product:
+            qs = obj.product.product_features.all()
             return {
-                "id": obj.product.id,
                 "title": obj.product.title,
-                "price": f"{obj.product.price:,.0f}",
+                "price": obj.product.price_formatter,
+                "features": [
+                    {
+                        "name": item.feature.name,
+                        "value": item.value,
+                    }
+                    for item in qs
+                ],
             }
         return None
 
     def validate(self, data):
         user = self.context["request"].user
-        product = data.get("product")
+        view = self.context["view"]
 
+        product_id = view.kwargs.get("product_id")
+        product = get_object_or_404(Product, id=product_id)
+
+        # Unique constraint on user and product
         if Feedback.objects.filter(
             user=user,
-            product=product,
+            product_id=product_id,
         ).exists():
-            raise serializers.ValidationError("You already made a review.")
+            raise serializers.ValidationError(
+                "You already submitted a comment on this product"
+            )
+
+        data["product"] = product
         return data
+
+
+class ProductDetailSerializer(BaseSerializer):
+    price = serializers.DecimalField(
+        max_digits=12, decimal_places=2, coerce_to_string=False
+    )
+    price_formatted = serializers.SerializerMethodField()
+    features = serializers.SerializerMethodField()
+    in_stock = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "brand",
+            "stock",
+            "in_stock",
+            "price",
+            "price_formatted",
+            "main_image",
+            "description",
+            "features",
+        ]
+
+    def get_price_formatted(self, obj):
+        return f"{obj.price:,.0f}"
+
+    def get_features(self, obj):
+        qs = obj.product_features.all()
+        return FeatureValueSerializer(
+            qs,
+            many=True,
+            context=self.context,
+        ).data
+
+    def get_in_stock(self, obj):
+        return obj.stock > 0
 
 
 class LikeSerializer(ModelSerializer):

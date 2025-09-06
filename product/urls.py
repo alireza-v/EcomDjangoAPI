@@ -6,17 +6,17 @@ urlpatterns = [
     path(
         "",
         views.ProductListAPIView.as_view(),
-        name="product-list-api",
+        name="product-list",
     ),
     path(
         "categories/",
         views.CategoryListAPIView.as_view(),
-        name="category-list-api",
+        name="category-list",
     ),
     path(
-        "feedbacks/",
-        views.FeedbackCreateAPIView.as_view(),
-        name="create-feedback",
+        "<int:product_id>/feedbacks/",
+        views.FeedbackListCreateAPIView.as_view(),
+        name="list-create-feedback",
     ),
     path(
         "likes/",
@@ -26,6 +26,6 @@ urlpatterns = [
     path(
         "<str:slug>/",
         views.ProductDetailAPIView.as_view(),
-        name="product-detail-api",
+        name="product-detail",
     ),
 ]

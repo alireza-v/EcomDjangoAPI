@@ -257,3 +257,42 @@ CACHES = {
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
+
+
+# LOGGING = {
+#     "version": 1,
+#     "disable_existing_loggers": False,
+#     "formatters": {
+#         "verbose": {
+#             "format": "[{levelname}] {asctime} {name} {message}",
+#             "style": "{",
+#         },
+#         "simple": {
+#             "format": "[{levelname}] {message}",
+#             "style": "{",
+#         },
+#     },
+#     "handlers": {
+#         "console": {
+#             "class": "logging.StreamHandler",
+#             "formatter": "verbose",
+#         },
+#         "file": {
+#             "class": "logging.FileHandler",
+#             "filename": os.path.join(BASE_DIR, "server.log"),
+#             "formatter": "verbose",
+#         },
+#     },
+#     "loggers": {
+#         "django": {
+#             "handlers": ["console", "file"],
+#             "level": "DEBUG",  # use INFO or ERROR in production
+#             "propagate": True,
+#         },
+#         "product": {  # your app
+#             "handlers": ["console", "file"],
+#             "level": "DEBUG",
+#             "propagate": False,
+#         },
+#     },
+# }
