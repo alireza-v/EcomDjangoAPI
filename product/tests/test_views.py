@@ -5,7 +5,6 @@ from django.urls import reverse
 
 from conftest import faker
 from product.models import Feedback, Like
-from product.serializers import FeedbackSerializer
 
 
 def test_products(
@@ -267,7 +266,7 @@ def test_feedback_list(
     product = sample_products["products"][0]
     client, _ = auth_client
 
-    if p_id == "valid": # valid product_id 
+    if p_id == "valid":  # valid product_id
         p_id = product.id
 
     url = reverse(

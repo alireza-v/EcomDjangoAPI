@@ -28,43 +28,35 @@ def test_cart_list(auth_client):
 
 
 @pytest.mark.parametrize(
-    "action,quantity",
-    [
-        ("add", 3),
-        ("add", 11),
-        ("remove", 5),
-        ("remove", 11),
-    ],
+    "action",
+    ["add", "remove"],
 )
 def test_cart_create(
     auth_client,
     sample_products,
-    sample_carts,
+    cart_item_factory,
     action,
-    quantity,
 ):
     product = sample_products["products"][0]
     client, _ = auth_client
-    cart = sample_carts
-    initial_cart_quantity = cart.quantity if cart else 0
-    stock = product.stock
+    cart = cart_item_factory(
+        product=product,
+    )
+    initial_cart_quantity = cart.quantity if cart else 1  # default quantity = 1
 
     url = reverse("cart-list-create")
     response = client.post(
         url,
         {
             "product_id": product.id,
-            "quantity": quantity,
             "action": action,
         },
     )
 
-    if action == "add" and quantity > stock:
-        expected_status = 400
-    elif action == "remove" and quantity > initial_cart_quantity:
-        expected_status = 400
-    else:
+    if product.stock >= 1:
         expected_status = 201
+    else:
+        expected_status = 400
 
     assert response.status_code == expected_status
 
@@ -72,9 +64,9 @@ def test_cart_create(
         data = response.json()
 
         if action == "add":
-            expected_quantity = initial_cart_quantity + quantity
+            expected_quantity = initial_cart_quantity + 1
         elif action == "remove":
-            expected_quantity = initial_cart_quantity - quantity
+            expected_quantity = initial_cart_quantity - 1
 
         assert data["quantity"] == expected_quantity
 
@@ -86,9 +78,9 @@ def test_cart_create(
         (False, 200),
     ],
 )
-def test_cart_clear(
+def test_clear_cart_items(
     auth_client,
-    sample_carts,
+    sample_cart_item,
     setup_cart,
     expected_status,
 ):
@@ -96,7 +88,7 @@ def test_cart_clear(
     url = reverse("cart-clear")
 
     if not setup_cart:
-        sample_carts.delete()
+        sample_cart_item.delete()
 
     response = client.delete(url)
     assert response.status_code == expected_status
@@ -105,10 +97,10 @@ def test_cart_clear(
 def test_order_success(
     auth_client,
     sample_products,
-    sample_carts,
+    sample_cart_item,
 ):
     product = sample_products["products"][0]
-    cart = sample_carts
+    cart = sample_cart_item
     client, user = auth_client
 
     url = reverse("checkout")

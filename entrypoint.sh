@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e # Exit execution if failed
 
-python manage.py migrate # Apply django database migrations
+python manage.py migrate
 
 exec "$@" # Execute CMD from Dockerfile if exists

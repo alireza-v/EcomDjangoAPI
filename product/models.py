@@ -8,12 +8,12 @@ from users.models import TimestampModel
 
 class Category(TimestampModel):
     title = models.CharField(
-        verbose_name=_("عنوان"),
+        verbose_name=_("گروه"),
         max_length=255,
     )
     parent = models.ForeignKey(
         "self",
-        verbose_name=_("عنوان گروه"),
+        verbose_name=_("زیر مجموعه"),
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -35,7 +35,7 @@ class Category(TimestampModel):
 
     def get_breadcrumbs(self):
         """
-        Returns the breadcrumb path of the category from the top-level parent down to itself
+        Return the breadcrumb path of the category from the top-level parent down to itself
         """
         breadcrumbs = []
         category = self
@@ -64,14 +64,14 @@ class Category(TimestampModel):
 
 class FeatureName(TimestampModel):
     name = models.CharField(
-        verbose_name=_("نام"),
+        verbose_name=_("نام ویژگی"),
         max_length=100,
         unique=True,
     )
 
     class Meta:
         verbose_name = "عنوان ویژگی"
-        verbose_name_plural = " عنوان ویژگی ها"
+        verbose_name_plural = "ویژگی ها"
 
     def __str__(self):
         return self.name
@@ -79,7 +79,7 @@ class FeatureName(TimestampModel):
 
 class Product(TimestampModel):
     title = models.CharField(
-        verbose_name=_("عنوان"),
+        verbose_name=_("نام"),
         max_length=255,
     )
     category = models.ForeignKey(
@@ -97,7 +97,7 @@ class Product(TimestampModel):
         blank=True,
     )
     main_image = models.ImageField(
-        verbose_name=_("عکس اصلی"),
+        verbose_name=_("عکس رسمی"),
         upload_to="products/",
         null=True,
         blank=True,
@@ -120,6 +120,7 @@ class Product(TimestampModel):
         verbose_name=_("برند"),
         max_length=100,
         db_index=True,
+        blank=True,
     )
     slug = models.SlugField(
         _("شناسه"),
@@ -183,8 +184,8 @@ class FeatureValue(TimestampModel):
         """
 
         ordering = ["-id"]
-        verbose_name = "مقدار ویژگی محصول"
-        verbose_name_plural = "مقادیر ویژگی های محصول"
+        verbose_name = "مقدار ویژگی "
+        verbose_name_plural = "مقادیر ویژگی ها"
         constraints = [
             models.UniqueConstraint(
                 fields=[
@@ -208,7 +209,7 @@ class ProductImage(TimestampModel):
         related_name="images",
     )
     image = models.ImageField(
-        verbose_name=_("عکس رسمی"),
+        verbose_name=_("عکس"),
         upload_to="products/gallery/",
         null=True,
         blank=True,
@@ -266,6 +267,7 @@ class Like(TimestampModel):
     )
     product = models.ForeignKey(
         Product,
+        verbose_name=_("محصول"),
         on_delete=models.CASCADE,
         related_name="product_likes",
     )

@@ -6,7 +6,7 @@
 
   **Request body**
   - `product_id` (int, required)-> product identifier
-  - `action` (string, required) — choices: `add`, `remove` | default: `add`
+  - `action` (string, not required) — choices: `add`, `remove` | default: `add`
   - `quantity` (int, not required) — default: `1`
 
   **Responses**

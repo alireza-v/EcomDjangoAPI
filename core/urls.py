@@ -29,24 +29,28 @@ schema_view = get_schema_view(
 )
 
 
-urlpatterns = [
-    path("admin/", admin.site.urls),
-    # Landing page being redirected to Swagger
-    path("", RedirectView.as_view(url="swagger/"), name="redirection"),
-    path(
-        "swagger/",
-        schema_view.with_ui("swagger", cache_timeout=0),
-        name="schema-swagger-ui",
-    ),
-    # Internal endpoints
-    path("api/v1/auth/", include("users.urls")),
-    path("api/v1/products/", include("product.urls")),
-    path("api/v1/checkout/", include("cart.urls")),
-    # Djoser endpoints
-    re_path(r"^auth/", include("djoser.urls")),
-    re_path(r"^auth/", include("djoser.urls.jwt")),
-    path("auth/jwt/logout/", TokenBlacklistView.as_view(), name="jwt_logout"),
-]
+urlpatterns = (
+    [
+        path("admin/", admin.site.urls),
+        # Landing page being redirected to Swagger
+        path("", RedirectView.as_view(url="swagger/"), name="redirection"),
+        path(
+            "swagger/",
+            schema_view.with_ui("swagger", cache_timeout=0),
+            name="schema-swagger-ui",
+        ),
+        # Internal endpoints
+        path("api/v1/auth/", include("users.urls")),
+        path("api/v1/products/", include("product.urls")),
+        path("api/v1/checkout/", include("cart.urls")),
+        # Djoser endpoints
+        re_path(r"^auth/", include("djoser.urls")),
+        re_path(r"^auth/", include("djoser.urls.jwt")),
+        path("auth/jwt/logout/", TokenBlacklistView.as_view(), name="jwt_logout"),
+    ]
+    + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+)
 
 # Serve uploaded files in DEBUG
 if settings.DEBUG:

@@ -187,19 +187,44 @@ def sample_likes(
 
 
 @pytest.fixture
-def sample_carts(
+def sample_cart_item(
     db,
     sample_active_user,
     sample_products,
 ):
+    """Ready-made simple instance"""
     product = sample_products["products"][0]
+    return CartItem.objects.create(
+        user=sample_active_user,
+        product=product,
+        quantity=random.randint(1, 10),
+    )
+
+
+@pytest.fixture
+def cart_item_factory(
+    db,
+    sample_active_user,
+    sample_products,
+):
+    """
+    Factory fixture to create CartItem instances using custom values
+    """
     user = sample_active_user
 
-    return CartItem.objects.create(
-        user=user,
-        product=product,
-        quantity=5,
-    )
+    def _create_cart_item(
+        product=None,
+        quantity: int = 1,
+    ):
+        if product is None:
+            product = sample_products["products"][0]
+        return CartItem.objects.create(
+            user=user,
+            product=product,
+            quantity=quantity,
+        )
+
+    return _create_cart_item
 
 
 @pytest.fixture
@@ -212,6 +237,21 @@ def sample_order(
     return Order.objects.create(
         user=user,
     )
+
+
+@pytest.fixture
+def order_factory(db, sample_active_user):
+    """Order model factory"""
+
+    user = sample_active_user
+
+    def _create_order(status: str = "pending"):
+        return Order.objects.create(
+            user=user,
+            status=status,
+        )
+
+    return _create_order
 
 
 @pytest.fixture
@@ -229,3 +269,25 @@ def sample_order_item(
         quantity=random.randint(1, 10),
         price_at_purchase=faker.pyfloat(left_digits=10, right_digits=2, positive=True),
     )
+
+
+@pytest.fixture
+def order_item_factory(db, sample_products):
+    def _create_order_items(
+        order,
+        product=None,
+        quantity=1,
+        price=None,
+    ):
+        if product:
+            product = sample_products["products"][0]
+        if price:
+            price = product.price
+        return OrderItem.objects.create(
+            order=order,
+            product=product,
+            quantity=quantity,
+            price_at_purchase=price,
+        )
+
+    return _create_order_items

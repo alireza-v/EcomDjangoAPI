@@ -14,6 +14,7 @@ from product.models import (
 
 User = get_user_model()
 fake = Faker("fa_IR")
+USER_PASSWORD = "123!@#QWE"
 
 
 class Command(BaseCommand):
@@ -95,7 +96,7 @@ class Command(BaseCommand):
                 email=f"active_user_{i}@example.com"
             )
             if created:
-                user.set_password("123!@#QWE")
+                user.set_password(USER_PASSWORD)
                 user.is_active = True
                 user.save()
 

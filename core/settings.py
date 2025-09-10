@@ -37,7 +37,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
 
 ALLOWED_HOSTS = (
-    ["localhost", "127.0.0.1"]
+    ["*"]
     if DEBUG
     else [
         host.strip()
@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_yasg",
     "django_filters",
+    "django_cleanup",
     # internal apps
     "users",
     "product",
@@ -74,9 +75,11 @@ INSTALLED_APPS = [
 
 
 SILENCED_SYSTEM_CHECKS = ["security.W019"]
+X_FRAME_OPTIONS = "SAMEORIGIN"
 
 AUTH_USER_MODEL = "users.CustomUser"
 
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
 
 DOMAIN = os.getenv("DOMAIN", "localhost:9000")
 
@@ -248,7 +251,10 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "example-password")
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1"),
+        "LOCATION": os.getenv(
+            "REDIS_URL",
+            "redis://127.0.0.1:6379/1",
+        ),
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },

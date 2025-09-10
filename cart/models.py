@@ -10,7 +10,12 @@ from users.models import TimestampModel
 
 
 class CartItem(TimestampModel):
-    """Products added to the user's cart"""
+    """
+    User cart model to store items
+        - user: User
+        - product: Product
+        - quantity: product quantity
+    """
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -37,16 +42,16 @@ class CartItem(TimestampModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "product"],
-                name="unique_cart_item",
+                name="unique_product_per_user",
             )
         ]
 
     @property
     def subtotal(self):
         """
-        Returns total amount being bought
+        Total amount being bought
         """
-        return self.product.price * self.quantity
+        return f"{self.product.price * self.quantity:,.0f}"
 
     def __str__(self):
         return f"{self.user.email} - {self.product.title} (x{self.quantity})"
@@ -54,7 +59,7 @@ class CartItem(TimestampModel):
 
 class Order(TimestampModel):
     """
-    Stores the user's order information and summary
+    Store user order info
     """
 
     class Status(models.TextChoices):
@@ -69,8 +74,8 @@ class Order(TimestampModel):
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
         verbose_name=_("کاربر"),
+        on_delete=models.CASCADE,
         related_name="user_orders",
     )
     status = models.CharField(
@@ -88,14 +93,14 @@ class Order(TimestampModel):
         max_digits=10,
         decimal_places=2,
         default=0,
-        help_text="snapshot of the total price at checkout time",
+        help_text="Snapshot of the total price at checkout time",
     )
 
     @property
     def total(self):
         """
         Returns computed total amount
-        e.g. sum of all OrderItem prices * quantities
+        i.e. sum of all OrderItem prices * quantities
         """
         return sum(
             Decimal(item.price_at_purchase) * item.quantity
@@ -113,7 +118,7 @@ class Order(TimestampModel):
 
 class OrderItem(TimestampModel):
     """
-    Stores detailed information about each product in an order, including quantity and purchase price
+    Store detailed info about each product in Order, i.e. quantity | price
     """
 
     order = models.ForeignKey(
@@ -124,7 +129,7 @@ class OrderItem(TimestampModel):
     )
     product = models.ForeignKey(
         Product,
-        on_delete=models.PROTECT,
+        on_delete=models.PROTECT,  # Prevent deletion if order existed
         verbose_name=_("محصول"),
         related_name="product_order_items",
     )

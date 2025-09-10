@@ -15,7 +15,7 @@ from product.models import (
 
 class BaseSerializer(serializers.HyperlinkedModelSerializer):
     """
-    Remove null values from response
+    Remove null values
     """
 
     def to_representation(self, instance):
@@ -35,7 +35,7 @@ class ProductSerializer(BaseSerializer):
     features = serializers.SerializerMethodField()
     avg_rating = serializers.SerializerMethodField()
     in_stock = serializers.SerializerMethodField()
-    created_at = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
 
     class Meta:
         model = Product
@@ -52,16 +52,17 @@ class ProductSerializer(BaseSerializer):
             "features",
             "url",
             "main_image",
-            "description",
             "slug",
             "avg_rating",
             "created_at",
         ]
 
     def get_price_formatted(self, obj):
+        """price_formatter being called"""
         return f"{obj.price:,.0f}"
 
     def get_features(self, obj):
+        """Procut related features being called including name and value"""
         feature_qs = obj.product_features.all()
         return FeatureValueSerializer(
             feature_qs,
@@ -69,31 +70,42 @@ class ProductSerializer(BaseSerializer):
         ).data
 
     def get_avg_rating(self, obj):
-        return getattr(obj, "avg_rating", 0) or 0
+        """avg_rating being called from the view"""
+        return getattr(obj, "avg_rating", 0)
 
     def get_in_stock(self, obj):
+        """Boolean value of stock"""
         return obj.stock > 0
-
-    def get_created_at(self, obj):
-        return f"{obj.created_at:%Y-%m-%d %H:%M:%S}"
 
 
 class CategorySerializer(BaseSerializer):
     products_preview = serializers.SerializerMethodField()
     subcategories = serializers.SerializerMethodField()
+    breadcrumb = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
         fields = [
             "title",
+            "breadcrumb",
             "products_preview",
             "subcategories",
+        ]
+
+    def get_breadcrumb(self, obj):
+        return [
+            {
+                "id": cat.id,
+                "title": cat.title,
+                "slug": cat.slug,
+            }
+            for cat in obj.get_breadcrumbs()
         ]
 
     def get_products_preview(self, obj):
         """
         Return sets of products for preview
-        Example: top 5 most visited products in the category
+        e.g. top 5 most visited products in the category
         """
         qs = obj.products.annotate(
             avg_rating=Avg("product_feedbacks__rating")
@@ -105,6 +117,7 @@ class CategorySerializer(BaseSerializer):
         ).data
 
     def get_subcategories(self, obj):
+        """Return subcategories of each category"""
         return CategorySerializer(
             obj.subcategories.all(),
             many=True,
@@ -112,7 +125,7 @@ class CategorySerializer(BaseSerializer):
         ).data
 
 
-class FeatureValueSerializer(ModelSerializer):
+class FeatureValueSerializer(BaseSerializer):
     feature = serializers.StringRelatedField()
 
     class Meta:
@@ -129,23 +142,13 @@ class ProductImageSerializer(BaseSerializer):
         fields = ["image"]
 
 
-class ProductFeatureSerializer(ModelSerializer):
+class ProductFeatureSerializer(BaseSerializer):
     class Meta:
         model = FeatureValue
         fields = [
             "product",
             "feature",
             "value",
-        ]
-
-
-class CategoryBreadcrumbSerializer(ModelSerializer):
-    class Meta:
-        model = Category
-        fields = [
-            "id",
-            "title",
-            "slug",
         ]
 
 
@@ -179,6 +182,7 @@ class FeedbackSerializer(BaseSerializer):
         ]
 
     def get_product(self, obj):
+        """Fetch product related comments"""
         if obj.product:
             qs = obj.product.product_features.all()
             return {
@@ -218,9 +222,10 @@ class ProductDetailSerializer(BaseSerializer):
     price = serializers.DecimalField(
         max_digits=12, decimal_places=2, coerce_to_string=False
     )
-    price_formatted = serializers.SerializerMethodField()
+    formatted_price = serializers.SerializerMethodField()
     features = serializers.SerializerMethodField()
     in_stock = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -232,16 +237,18 @@ class ProductDetailSerializer(BaseSerializer):
             "stock",
             "in_stock",
             "price",
-            "price_formatted",
-            "main_image",
+            "formatted_price",
             "description",
+            "main_image",
+            "images",
             "features",
         ]
 
-    def get_price_formatted(self, obj):
+    def get_formatted_price(self, obj):
         return f"{obj.price:,.0f}"
 
     def get_features(self, obj):
+        """Return product related features"""
         qs = obj.product_features.all()
         return FeatureValueSerializer(
             qs,
@@ -250,10 +257,22 @@ class ProductDetailSerializer(BaseSerializer):
         ).data
 
     def get_in_stock(self, obj):
+        """Boolean stock value"""
         return obj.stock > 0
 
+    def get_images(self, obj):
+        """
+        Fetch product related images
+        """
+        images = obj.images.all()
+        urls = []
+        for img in images:
+            if img.image and hasattr(img.image, "url"):
+                urls.append(img.image.url)
+        return urls
 
-class LikeSerializer(ModelSerializer):
+
+class LikeSerializer(BaseSerializer):
     user = serializers.StringRelatedField()
     product = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),

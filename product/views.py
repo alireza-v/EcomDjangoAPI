@@ -265,7 +265,7 @@ class FeedbackListCreateAPIView(generics.ListCreateAPIView):
         responses={
             201: FeedbackSerializer,
             400: openapi.Response(description="Bad request"),
-            401:openapi.Response(description="Unauthorized"),
+            401: openapi.Response(description="Unauthorized"),
         },
         tags=["Feedback"],
     )
