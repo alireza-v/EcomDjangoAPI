@@ -12,6 +12,7 @@ front
 media
 static/product
 .vscode
+staticfiles
 
 # Distribution / packaging
 .Python

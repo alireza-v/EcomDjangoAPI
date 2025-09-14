@@ -32,7 +32,7 @@ schema_view = get_schema_view(
 urlpatterns = (
     [
         path("admin/", admin.site.urls),
-        # Landing page being redirected to Swagger
+        # Redirection
         path("", RedirectView.as_view(url="swagger/"), name="redirection"),
         path(
             "swagger/",

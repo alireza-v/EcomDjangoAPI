@@ -31,7 +31,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
@@ -73,7 +73,7 @@ INSTALLED_APPS = [
     "cart",
 ]
 
-
+# admin-interface
 SILENCED_SYSTEM_CHECKS = ["security.W019"]
 X_FRAME_OPTIONS = "SAMEORIGIN"
 
@@ -82,6 +82,7 @@ AUTH_USER_MODEL = "users.CustomUser"
 CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
 
 DOMAIN = os.getenv("DOMAIN", "localhost:9000")
+SITE_NAME = os.getenv("SITE_NAME", "site-name")
 
 DJOSER = {
     "SEND_ACTIVATION_EMAIL": True,
@@ -93,6 +94,13 @@ DJOSER = {
         "user_create": "users.serializers.CustomUserCreateSerializer",
     },
     "TOKEN_MODEL": None,
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=5),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=2),
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": os.getenv("JWT_SECRET_KEY"),
 }
 
 REST_FRAMEWORK = {
@@ -124,11 +132,6 @@ swagger_settings.SECURITY_DEFINITIONS = {
 }
 
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=5),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=2),
-}
-
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
@@ -138,8 +141,6 @@ else:
         if origin
     ]
 
-
-SITE_NAME = os.getenv("SITE_NAME", "site-name")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -243,8 +244,8 @@ if DEBUG:
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "example@email.com")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "example-password")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 
 # Redis caching

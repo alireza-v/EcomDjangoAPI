@@ -1,0 +1,20 @@
+# pyc files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# dev files
+*.sqlite3
+*.log
+.env
+*.env
+
+# Version control
+.git/
+.gitignore
+
+# vscode files
+.vscode/
+.idea/
+*.swp

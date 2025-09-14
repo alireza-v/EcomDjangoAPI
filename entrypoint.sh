@@ -1,6 +1,11 @@
 #!/bin/sh
-set -e # Exit execution if failed
 
-python manage.py migrate
+# exit on error
+set -e
 
-exec "$@" # Execute CMD from Dockerfile if exists
+python manage.py migrate --noinput
+
+python manage.py collectstatic --noinput
+
+# execute CMD
+exec "$@"
