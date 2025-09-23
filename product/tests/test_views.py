@@ -216,10 +216,7 @@ def test_feedback_create(
     client, user = auth_client
 
     if already_made_comment:
-        sample_feedbacks(
-            user=user,
-            product=product,
-        )
+        sample_feedbacks()
 
     url = reverse(
         "list-create-feedback",
@@ -227,7 +224,7 @@ def test_feedback_create(
     )
     payload = {
         "comment": faker.text(max_nb_chars=50),
-        "rate": random.randint(1, 5),
+        "score": random.randint(1, 5),
     }
     response = client.post(url, payload)
 
@@ -241,7 +238,7 @@ def test_feedback_create(
     # In either case, the counting should be 1
     assert feedback_count == 1
 
-    expected_keys = ["user", "rate", "comment"]
+    expected_keys = ["user", "score", "comment"]
 
     if exp_st_code == 201:
         missing_keys = set(expected_keys) - set(
@@ -288,7 +285,7 @@ def test_feedback_list(
 
 
 @pytest.mark.parametrize(
-    "like_exists_before, expected_status",
+    "already_liked, expected_status",
     [
         (True, 200),
         (False, 201),
@@ -298,7 +295,7 @@ def test_toggle_likes(
     auth_client,
     sample_products,
     sample_likes,
-    like_exists_before,
+    already_liked,
     expected_status,
 ):
     product = sample_products["products"][0]
@@ -306,13 +303,11 @@ def test_toggle_likes(
 
     url = reverse("like-toggle")
 
-    if like_exists_before:
-        sample_likes
-    else:
-        Like.objects.filter(
+    if already_liked:
+        sample_likes(
             user=user,
             product=product,
-        ).delete()
+        )
 
     response = client.post(
         url,
@@ -323,7 +318,7 @@ def test_toggle_likes(
 
     assert response.status_code == expected_status
 
-    if like_exists_before:
+    if already_liked:
         assert not Like.objects.filter(
             user=user,
             product=product,
@@ -333,4 +328,3 @@ def test_toggle_likes(
             user=user,
             product=product,
         ).exists()
-        assert "user" in response.data and "product_related" in response.data

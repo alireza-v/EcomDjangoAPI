@@ -1,5 +1,3 @@
-import os
-
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -16,13 +14,18 @@ load_dotenv()
 
 schema_view = get_schema_view(
     openapi.Info(
-        title=os.getenv("API_TITLE", "API-title"),
+        title="CortexCommerce",
         default_version="v1",
-        description=os.getenv("API_DESCRIPTION", "API-description"),
-        contact=openapi.Contact(
-            email=os.getenv("API_CONTACT_EMAIL", "contact-email@example.com")
-        ),
-        license=openapi.License(name=os.getenv("API_LICENSE_NAME", "API-license")),
+        license=openapi.License(name="BSD License"),
+        description="""
+    This API allows users to:
+    - Browse products and categories
+    - Manage shopping carts and orders
+    - Apply discounts and process payments
+    - Track order history and feedback
+    All endpoints are secured where necessary and return JSON responses.
+    For authentication, use JWT tokens
+    """,
     ),
     public=True,
     generator_class=CustomSchemaGenerator,
@@ -35,6 +38,9 @@ urlpatterns = (
         # Redirection
         path("", RedirectView.as_view(url="swagger/"), name="redirection"),
         path(
+            "swagger.json", schema_view.without_ui(cache_timeout=0), name="schema-json"
+        ),
+        path(
             "swagger/",
             schema_view.with_ui("swagger", cache_timeout=0),
             name="schema-swagger-ui",
@@ -42,7 +48,9 @@ urlpatterns = (
         # Internal endpoints
         path("api/v1/auth/", include("users.urls")),
         path("api/v1/products/", include("product.urls")),
-        path("api/v1/checkout/", include("cart.urls")),
+        path("api/v1/carts/", include("cart.urls")),
+        path("api/v1/checkout/", include("orders.urls")),
+        path("api/v1/payments/", include("payments.urls")),
         # Djoser endpoints
         re_path(r"^auth/", include("djoser.urls")),
         re_path(r"^auth/", include("djoser.urls.jwt")),

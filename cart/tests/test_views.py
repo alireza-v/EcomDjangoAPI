@@ -1,12 +1,6 @@
 import pytest
 from django.urls import reverse
 
-from cart.models import (
-    CartItem,
-    Order,
-    OrderItem,
-)
-
 
 def test_cart_list(auth_client):
     client, _ = auth_client
@@ -38,8 +32,9 @@ def test_cart_create(
     action,
 ):
     product = sample_products["products"][0]
-    client, _ = auth_client
+    client, user = auth_client
     cart = cart_item_factory(
+        user=user,
         product=product,
     )
     initial_cart_quantity = cart.quantity if cart else 1  # default quantity = 1
@@ -92,72 +87,3 @@ def test_clear_cart_items(
 
     response = client.delete(url)
     assert response.status_code == expected_status
-
-
-def test_order_success(
-    auth_client,
-    sample_products,
-    sample_cart_item,
-):
-    product = sample_products["products"][0]
-    cart = sample_cart_item
-    client, user = auth_client
-
-    url = reverse("checkout")
-
-    stock = product.stock
-    cart_quantity = cart.quantity
-    expected_stock = stock - cart_quantity
-
-    response = client.post(
-        url,
-        {
-            "address": "some-address",
-        },
-    )
-
-    if stock < cart_quantity:
-        assert response.status_code == 400
-        return
-    else:
-        assert response.status_code == 201
-        assert all(
-            key in response.data
-            for key in [
-                "detail",
-                "status",
-                "items",
-            ]
-        )
-
-        order = Order.objects.filter(
-            user=user,
-            status="pending",
-        ).first()
-        assert order is not None
-
-        # refresh Product table
-        product.refresh_from_db()
-        assert product.stock == expected_stock
-
-        order_item = OrderItem.objects.filter(
-            order=order,
-            product=product,
-            quantity=cart_quantity,
-            price_at_purchase=product.price,
-        )
-        assert order_item.exists()
-
-        assert not CartItem.objects.filter(
-            user=user,
-        ).exists()
-
-
-def test_order_list(auth_client):
-    client, _ = auth_client
-    url = reverse("order-list")
-    response = client.get(url)
-    data = response.json()
-
-    assert response.status_code == 200
-    assert isinstance(data, list)

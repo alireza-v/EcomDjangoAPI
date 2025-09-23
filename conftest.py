@@ -11,7 +11,9 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from faker import Faker
 from rest_framework.test import APIClient
 
-from cart.models import CartItem, Order, OrderItem
+from cart.models import CartItem
+from orders.models import Order, OrderItem
+from payments.models import Payment
 from product.models import (
     Category,
     FeatureName,
@@ -97,7 +99,7 @@ def sample_products(db):
                 category=child,
                 price=round(random.uniform(10000, 3000), 2),
                 description="Product description!",
-                stock=random.randint(1, 10),
+                stock=5,
                 visit_count=random.randint(0, 10),
             )
             products.append(product)
@@ -174,16 +176,14 @@ def sample_feedbacks(
 @pytest.fixture
 def sample_likes(
     db,
-    sample_active_user,
-    sample_products,
 ):
-    user = sample_active_user
-    product = sample_products["products"][0]
+    def create_favorites(user, product):
+        return Like.objects.create(
+            user=user,
+            product=product,
+        )
 
-    return Like.objects.create(
-        user=user,
-        product=product,
-    )
+    return create_favorites
 
 
 @pytest.fixture
@@ -204,38 +204,37 @@ def sample_cart_item(
 @pytest.fixture
 def cart_item_factory(
     db,
-    sample_active_user,
-    sample_products,
 ):
     """
     Factory fixture to create CartItem instances using custom values
     """
-    user = sample_active_user
 
-    def _create_cart_item(
-        product=None,
+    def create_cart_item(
+        user,
+        product,
         quantity: int = 1,
     ):
-        if product is None:
-            product = sample_products["products"][0]
         return CartItem.objects.create(
             user=user,
             product=product,
             quantity=quantity,
         )
 
-    return _create_cart_item
+    return create_cart_item
 
 
 @pytest.fixture
-def sample_order(
-    db,
-    sample_active_user,
-):
-    user = sample_active_user
+def sample_order(db, sample_active_user):
+    """Create order instance"""
 
     return Order.objects.create(
-        user=user,
+        user=sample_active_user,
+        shipping_address=faker.address(),
+        total_amount=faker.pyfloat(
+            left_digits=10,
+            right_digits=2,
+            positive=True,
+        ),
     )
 
 
@@ -243,11 +242,9 @@ def sample_order(
 def order_factory(db, sample_active_user):
     """Order model factory"""
 
-    user = sample_active_user
-
     def _create_order(status: str = "pending"):
         return Order.objects.create(
-            user=user,
+            user=sample_active_user,
             status=status,
         )
 
@@ -272,17 +269,13 @@ def sample_order_item(
 
 
 @pytest.fixture
-def order_item_factory(db, sample_products):
+def order_item_factory(db):
     def _create_order_items(
         order,
         product=None,
         quantity=1,
         price=None,
     ):
-        if product:
-            product = sample_products["products"][0]
-        if price:
-            price = product.price
         return OrderItem.objects.create(
             order=order,
             product=product,
@@ -291,3 +284,17 @@ def order_item_factory(db, sample_products):
         )
 
     return _create_order_items
+
+
+@pytest.fixture
+def sample_payment(
+    db,
+    sample_order,
+    sample_active_user,
+):
+    return Payment.objects.create(
+        order=sample_order,
+        user=sample_active_user,
+        track_id=str(faker.random_number(digits=10, fix_len=True)),
+        amount=faker.pyfloat(left_digits=10, right_digits=2, positive=True),
+    )

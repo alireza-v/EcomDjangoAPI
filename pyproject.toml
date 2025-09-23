@@ -1,9 +1,7 @@
 [tool.isort]
 profile= "black"
-skip= ["env", "migrations", "__pycache__", "node_modules"]
+skip= ["env", "migrations", "__pycache__"]
 skip_gitignore= true
 
 [tool.ruff]
 exclude=["env", "migrations", "__pycache__"]
-
-

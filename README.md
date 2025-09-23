@@ -1,4 +1,4 @@
-## EcomDjangoAPI
+## CortextCommerce
 
 A robust and scalable eCommerce backend built with [Django](https://docs.djangoproject.com/en/5.2/) and [DRF](https://www.django-rest-framework.org/).
 It provides a comprehensive set of APIs for product browsing, cart management, checkout, and user authentication.
@@ -20,26 +20,32 @@ If you prefer English labels, you can update the `verbose_name` in your models o
 ---
 
 ###  Features
-- 🔐 Authentication & Authorization
-   - JWT-based authentication (Djoser + SimpleJWT)
+
+- 🔐 **Authentication & Authorization**
+   - JWT-based authentication using [Djoser](https://djoser.readthedocs.io/en/latest/getting_started.html) and [SimpleJWT](https://django-rest-framework-simplejwt.readthedocs.io/en/latest/)
    - User registration, login, logout
-   - Password reset & account activation
-- 🔎 Product catalog with search & filters
-   - Hierarchical categories with flexible filtering & sorting
-   - Price range & keyword search
+   - Password reset and account activation
+
+- 🔎 **Product catalog with search & filters**
+   - Hierarchical categories with flexible filtering and sorting
+   - Price range and keyword search
    - Efficient product pagination for large catalogs
-- 🛒 Cart management
-   - Add & Remove products
+
+- 🛒 **Cart management**
+   - Add and remove products
    - Persistent cart per user
-- 💳 Checkout system
+
+- 💳 **Checkout system**
    - Order creation
-   - Invoice
+   - Invoice generation
    - Order history tracking to view past orders
-   - Payment flow will be integrated later to finalize the purchase (**planned for later updates**)
-- 📊 Admin tools
+   - Payment integration using [Zibal](https://zibal.ir/) to finalize purchases
+
+- 📊 **Admin tools**
    - Manage products, categories, and orders
-   - Track visit counts & product popularity
-- 🧩 RESTful API with Swagger documentation
+   - Track visit counts and product popularity
+
+- 🧩 **RESTful API** with Swagger documentation
 
 ---
 

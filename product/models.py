@@ -1,5 +1,8 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
@@ -48,6 +51,25 @@ class Category(TimestampModel):
         ordering = ["-visit_count"]
         verbose_name = _("گروه")
         verbose_name_plural = _("گروه ها")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["title", "parent"],
+                name="unique_category_per_parent",
+            ),
+        ]
+
+    def validate_unique(self, exclude=None):
+        """Respect uniqueness in admin"""
+        super().validate_unique(exclude=exclude)
+        if (
+            Category.objects.filter(
+                title=self.title,
+                parent=self.parent,
+            )
+            .exclude(pk=self.pk)
+            .exists()
+        ):
+            raise ValidationError({"title": "Category with this title already exist"})
 
     def __str__(self):
         return self.title
@@ -120,6 +142,7 @@ class Product(TimestampModel):
         verbose_name=_("برند"),
         max_length=100,
         db_index=True,
+        null=True,
         blank=True,
     )
     slug = models.SlugField(
@@ -132,9 +155,36 @@ class Product(TimestampModel):
     )
 
     class Meta:
+        """
+        Constraint (uniqueness):
+            - title
+            - brand
+        """
+
         ordering = ["-visit_count", "-created_at"]
         verbose_name = _("محصول")
         verbose_name_plural = _("محصولات")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["title", "brand"],
+                name="unique_title",
+            )
+        ]
+
+    def get_discount(self):
+        """
+        Find max discount for products and  categories
+        """
+        discounts = list(self.product_discount.filter(end_date__gte=timezone.now()))
+        if self.category:
+            discounts += list(
+                self.category.category_discount.filter(end_date__gte=timezone.now())
+            )
+        return max([d.percent for d in discounts], default=0)
+
+    def discounted_price(self):
+        discount = self.get_discount()
+        return self.price * (100 - discount) / 100
 
     @property
     def price_formatter(self):
@@ -157,10 +207,52 @@ class Product(TimestampModel):
         return self.title
 
 
+class Discount(TimestampModel):
+    "Discount model for products and categories"
+
+    name = models.CharField(
+        verbose_name=_("نام"),
+        max_length=100,
+    )
+    percent = models.PositiveIntegerField(
+        verbose_name=_("درصد"),
+        validators=[MaxValueValidator(100)],
+    )
+    end_date = models.DateTimeField(verbose_name=_("تایخ انقضا"))
+    product = models.ForeignKey(
+        Product,
+        verbose_name=_("محصولات"),
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+        related_name="product_discount",
+    )
+    category = models.ForeignKey(
+        Category,
+        verbose_name=_("گروه ها"),
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+        related_name="category_discount",
+    )
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        super().clean()
+        if self.end_date <= timezone.now():
+            raise ValidationError({"end_date": "End date must be in the future"})
+
+    class Meta:
+        verbose_name = "تخفیف"
+        verbose_name_plural = "تخفیف ها"
+
+
 class FeatureValue(TimestampModel):
     product = models.ForeignKey(
         Product,
-        verbose_name=_("محصول"),
+        verbose_name=_("محصولات"),
         on_delete=models.CASCADE,
         related_name="product_features",
     )
@@ -217,6 +309,8 @@ class ProductImage(TimestampModel):
 
     class Meta:
         ordering = ["-created_at"]
+        verbose_name = "عکس ها"
+        verbose_name_plural = "عکس ها"
 
     def __str__(self):
         return f"{self.product.title} - {self.id}"
@@ -275,7 +369,7 @@ class Like(TimestampModel):
     class Meta:
         """
         constraint (uniqueness):
-            - Being applied to "user" & "product" to prevent duplicate likes
+            - Product likes by each user
         """
 
         verbose_name = "مورد علاقه"
@@ -283,7 +377,7 @@ class Like(TimestampModel):
 
         constraints = [
             models.UniqueConstraint(
-                fields=["user", "product"], name="unique_user_product_like"
+                fields=["user", "product"], name="unique_product_likes"
             ),
         ]
 

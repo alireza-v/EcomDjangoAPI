@@ -1,11 +1,8 @@
 from django.db import transaction
 from rest_framework import serializers
-from rest_framework.serializers import ModelSerializer
 
 from cart.models import (
     CartItem,
-    Order,
-    OrderItem,
 )
 from product.models import Product
 from product.serializers import BaseSerializer
@@ -35,7 +32,7 @@ class CartSerializer(BaseSerializer):
             "invalid": "Please enter a valid integer value",
         },
     )
-    created_at = serializers.DateTimeField(format="%Y:%m:%d", read_only=True)
+    created_at = serializers.DateTimeField(format="%Y:%m:%d %H:%M:%S", read_only=True)
 
     class Meta:
         model = CartItem
@@ -52,13 +49,23 @@ class CartSerializer(BaseSerializer):
         """Return user cart info"""
         product = obj.product
         features = product.product_features.all()
+        discount = product.product_discount.all()
 
         return {
             "id": product.id,
             "in_stock": product.stock >= 1,
             "title": product.title,
-            "price": f"{product.price:,.0f}",
+            "price": product.price,
+            "formatted_price": f"{product.price:,.0f}",
             "main_image": product.main_image or None,
+            "discount": [
+                {
+                    "name": d.name,
+                    "percent": f"{d.percent:,.1f}",
+                    "end_date": f"{d.end_date:%Y-%m-%d %H:%M:%S}",
+                }
+                for d in discount
+            ],
             "features": [
                 {
                     "name": f.feature.name,
@@ -135,67 +142,3 @@ class CartSerializer(BaseSerializer):
                     user_cart.save()
 
             return user_cart
-
-
-class CheckoutSerializer(serializers.Serializer):
-    address = serializers.CharField(
-        max_length=255,
-        help_text="Delivery address",
-    )
-
-
-class OrderItemSerializer(BaseSerializer):
-    product = serializers.SerializerMethodField()
-    subtotal = serializers.SerializerMethodField()
-    price_at_purchase = serializers.SerializerMethodField()
-
-    class Meta:
-        model = OrderItem
-        fields = [
-            "id",
-            "quantity",
-            "price_at_purchase",
-            "subtotal",
-            "product",
-        ]
-
-    def get_product(self, obj):
-        """OrderItem related products"""
-        product = obj.product
-        return {
-            "id": product.id,
-            "title": product.title,
-            "price": f"{product.price:,.0f}",
-            "stock": product.stock,
-            "main_image": product.main_image.url if product.main_image else None,
-        }
-
-    def get_subtotal(self, obj):
-        return f"{obj.quantity * obj.price_at_purchase:,.0f}"
-
-    def get_price_at_purchase(self, obj):
-        return f"{obj.price_at_purchase:,.0f}"
-
-
-class OrderSerializer(ModelSerializer):
-    order_items = OrderItemSerializer(
-        many=True,
-        read_only=True,
-    )
-    total_prices = serializers.SerializerMethodField(source="total_amount")
-    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
-
-    class Meta:
-        model = Order
-        fields = [
-            "id",
-            "status",
-            "shipping_address",
-            "total_prices",
-            "created_at",
-            "order_items",
-        ]
-
-    def get_total_prices(self, obj):
-        "Sum of total prices"
-        return f"{obj.total_amount:,.0f}"

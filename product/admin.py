@@ -2,10 +2,10 @@ from django.contrib import admin
 
 from product.models import (
     Category,
+    Discount,
     FeatureName,
     FeatureValue,
     Feedback,
-    Like,
     Product,
     ProductImage,
 )
@@ -102,11 +102,26 @@ class ProductAdmin(admin.ModelAdmin):
         return obj.description[:20]
 
 
+@admin.register(Discount)
+class DiscountAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "percent",
+        "end_date",
+        "product",
+        "category",
+    ]
+
+
 @admin.register(FeatureName)
 class FeatureNameAdmin(admin.ModelAdmin):
     list_display = ["name"]
     search_fields = ["name"]
     list_filter = ["created_at", "name"]
+
+    def has_module_permission(self, request):
+        """Hide model from admin list"""
+        return False
 
 
 @admin.register(FeatureValue)

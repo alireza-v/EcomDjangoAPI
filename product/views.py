@@ -34,10 +34,14 @@ from product.serializers import (
 
 class ProductListAPIView(generics.ListAPIView):
     """
-    Fetched categories using slug
-    Products filtered by max_price | min_price
+    Fetch categories by slug
+    Products filtering:
+        - min_price
+        - max_price
+        - in_stock
+        - brand
+        - has_discount
     Paginated lists of products
-    Products sorted by price | visit_count | created_at
     """
 
     permission_classes = [permissions.AllowAny]
@@ -80,13 +84,22 @@ class ProductListAPIView(generics.ListAPIView):
         return qs
 
     @swagger_auto_schema(
+        operation_summary="Product list",
         manual_parameters=[
+            openapi.Parameter(
+                name="q",
+                in_=openapi.IN_QUERY,
+                description="Seach products",
+                type=openapi.TYPE_STRING,
+                example="laptop",
+            ),
             openapi.Parameter(
                 name="category",
                 in_=openapi.IN_QUERY,
                 type=openapi.TYPE_STRING,
                 description="Category info by given slug",
                 required=False,
+                example="electronics",
             ),
             openapi.Parameter(
                 name="max_price",
@@ -108,6 +121,28 @@ class ProductListAPIView(generics.ListAPIView):
                 type=openapi.TYPE_STRING,
                 description="Sorted by price | visit_count | created_at",
                 required=False,
+                example="-created_at",
+            ),
+            openapi.Parameter(
+                "in_stock",
+                openapi.IN_QUERY,
+                description="Filter by stock availability",
+                type=openapi.TYPE_BOOLEAN,
+                example=True,
+            ),
+            openapi.Parameter(
+                "brand",
+                openapi.IN_QUERY,
+                description="Filter by brand",
+                type=openapi.TYPE_STRING,
+                example="samsung",
+            ),
+            openapi.Parameter(
+                "has_discount",
+                openapi.IN_QUERY,
+                description="Only show discounted products",
+                type=openapi.TYPE_BOOLEAN,
+                example=True,
             ),
         ],
         tags=["Product"],
@@ -143,7 +178,8 @@ class CategoryListAPIView(generics.ListAPIView):
 
 class ProductDetailAPIView(generics.RetrieveAPIView):
     """
-    Retrieve product details by slug and increment visit counts
+    - Retrieve product details using product slug
+    - Increment visit counts if called atomically
     """
 
     permission_classes = [permissions.AllowAny]
@@ -154,13 +190,13 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
 
     @swagger_auto_schema(
         operation_summary="Product Detail",
-        operation_description="Retrieve product details using the slug. Visit count incremented atomically",
+        operation_description="Fetch product details using the slug. Visit count incremented atomically",
         manual_parameters=[
             openapi.Parameter(
                 name="slug",
                 in_=openapi.IN_PATH,
                 type=openapi.TYPE_STRING,
-                description="Slug of the product",
+                description="Product slug",
                 required=True,
             ),
         ],
@@ -173,6 +209,9 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
         },
         tags=["Product"],
     )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
     def retrieve(self, request, *args, **kwargs):
         slug = kwargs.get("slug")
         try:
@@ -205,7 +244,9 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
 
 
 class FeedbackListCreateAPIView(generics.ListCreateAPIView):
-    """List & Create feedbacks by product_id:int"""
+    """
+    List & Create feedbacks using product_id
+    """
 
     serializer_class = FeedbackSerializer
     pagination_class = FeedbackPagination
@@ -233,19 +274,21 @@ class FeedbackListCreateAPIView(generics.ListCreateAPIView):
         )
 
     def get_permissions(self):
-        """Authentication method only applied to POST method"""
+        """
+        Authentication required only for POST requests
+        """
         if self.request.method == "POST":
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 
     @swagger_auto_schema(
-        operation_summary="Feedback list",
-        operation_description="List feedbacks by the given kwargs: <id:product_id>",
+        operation_summary="List feedbacks",
+        operation_description="List feedbacks using product_id",
         manual_parameters=[
             openapi.Parameter(
                 name="product_id",
                 in_=openapi.IN_PATH,
-                description="product identifier e.g. id",
+                description="Fetch product instance using its id",
                 type=openapi.TYPE_INTEGER,
             ),
         ],
@@ -279,28 +322,28 @@ class LikeToggleCreateAPIView(APIView):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    serializer_class = LikeSerializer
 
     @swagger_auto_schema(
-        operation_id="Toggle likes",
         operation_summary="Like toggler",
-        operation_description="Toggle like/unlike for a product.",
+        operation_description="Toggle like/unlike for a product",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             required=["product"],
             properties={
                 "product": openapi.Schema(
                     type=openapi.TYPE_INTEGER,
-                    description="ID of the product to like/unline",
+                    description="ID of the product to like/unlike",
                 ),
             },
         ),
         responses={
             200: openapi.Response("Like removed"),
             201: openapi.Response("Like created", LikeSerializer),
-            400: "Bad request",
-            404: "Product not found",
+            400: openapi.Response("Bad request"),
+            404: openapi.Response("Product not found"),
         },
-        tags=["Likes"],
+        tags=["Product Likes"],
     )
     def post(self, request, *args, **kwargs):
         product_id = request.data.get("product")
@@ -331,4 +374,27 @@ class LikeToggleCreateAPIView(APIView):
         return Response(
             serializer.data,
             status=status.HTTP_201_CREATED,
+        )
+
+    @swagger_auto_schema(
+        operation_summary="List user likes",
+        operation_description="Retrieve list of all products liked by authenticated user",
+        responses={
+            200: openapi.Response(
+                description="List of likes",
+                schema=LikeSerializer(many=True),
+            ),
+            401: openapi.Response(
+                description="Unauthorized",
+            ),
+        },
+        tags=["Product Likes"],
+    )
+    def get(self, request, *args, **kwargs):
+        qs = Like.objects.filter(user=request.user)
+        serializer = self.serializer_class(qs, many=True)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
         )

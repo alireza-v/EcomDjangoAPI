@@ -1,14 +1,18 @@
 import random
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 from faker import Faker
 
 from product.models import (
     Category,
+    Discount,
     FeatureName,
     FeatureValue,
     Feedback,
+    Like,
     Product,
 )
 
@@ -18,7 +22,7 @@ USER_PASSWORD = "123!@#QWE"
 
 
 class Command(BaseCommand):
-    help = "Seed the database with random data by necessary models"
+    help = "Seed the database with random data for necessary models"
 
     brand_list = [
         "سامسونگ",
@@ -31,7 +35,6 @@ class Command(BaseCommand):
         "128 گیگابایت",
         "256 گیگابایت",
         "512 گیگابایت",
-        "1 ترابایت",
     ]
     features_list = [
         (
@@ -40,7 +43,6 @@ class Command(BaseCommand):
                 "128 گیگابایت",
                 "256 گیگابایت",
                 "512 گیگابایت",
-                "1 ترابایت",
             ],
         ),
         (
@@ -61,14 +63,6 @@ class Command(BaseCommand):
                 "قرمز",
             ],
         ),
-        (
-            "اندازه صفحه",
-            [
-                "13 اینچ",
-                "15 اینچ",
-                "17 اینچ",
-            ],
-        ),
     ]
 
     def handle(self, *args, **kwargs):
@@ -80,18 +74,13 @@ class Command(BaseCommand):
 
         subcategories = [
             Category.objects.create(
-                title="لپ‌تاپ",
+                title="گوشی موبایل",
                 parent=parent,
-                visit_count=random.randint(1, 100),
-            ),
-            Category.objects.create(
-                title="گوشی هوشمند",
-                parent=parent,
-                visit_count=random.randint(1, 100),
+                visit_count=random.randint(1, 50),
             ),
         ]
 
-        for i in range(1, 101):
+        for i in range(1, 50):
             user, created = User.objects.get_or_create(
                 email=f"active_user_{i}@example.com"
             )
@@ -103,15 +92,13 @@ class Command(BaseCommand):
         for name, _ in self.features_list:
             FeatureName.objects.get_or_create(name=name)
 
-        features_dict = {feature.name: feature for feature in FeatureName.objects.all()}
-
         for subcat in subcategories:
-            for i in range(5):
+            for i in range(1, 6):
+                index = i
                 brand = random.choice(self.brand_list)
-                memory = random.choice(self.memory_list)
 
                 product = Product.objects.create(
-                    title=f"گوشی {brand} ظرفیت {memory}",
+                    title=f"{subcat} {brand} شماره {index}",
                     brand=brand,
                     category=subcat,
                     price=random.randint(10_000_000, 50_000_000),
@@ -119,23 +106,40 @@ class Command(BaseCommand):
                     stock=random.randint(0, 10),
                     visit_count=random.randint(1, 100),
                 )
+                discounts = Discount.objects.create(
+                    name=f"تخفیف شماره {index}",
+                    percent=random.randint(1, 50),
+                    end_date=timezone.now() + timedelta(days=random.randint(1, 10)),
+                    product=product,
+                )
 
-                # Assign random features
+                # Liked products by users
+                likes = Like.objects.create(user=user, product=product)
+
+                # Features
+                features_dict = {f.name: f for f in FeatureName.objects.all()}
+                k = random.randint(2, min(4, len(self.features_list)))
                 selected_features = random.sample(
                     self.features_list,
-                    random.randint(2, 4),
+                    k,
                 )
                 for feature_name, values in selected_features:
-                    FeatureValue.objects.create(
+                    feature_obj = features_dict.get(feature_name)
+                    if not feature_obj:
+                        feature_obj, _ = FeatureName.objects.get_or_create(
+                            name=feature_name
+                        )
+                    FeatureValue.objects.get_or_create(
                         product=product,
-                        feature=features_dict[feature_name],
+                        feature=feature_obj,
                         value=random.choice(values),
                     )
 
-                # Random feedbacks from random users
+                # Feedbacks
                 users = list(User.objects.all())
-                feedback_users = random.sample(users, random.randint(5, 15))
-                for user in feedback_users:
+                k = random.randint(5, min(15, len(users)))
+                user_comments = random.sample(users, k)
+                for user in user_comments:
                     Feedback.objects.create(
                         user=user,
                         product=product,

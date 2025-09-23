@@ -93,7 +93,7 @@ def test_product_feature_unique_constraint(
 
     # Avoid being failed and left as broken state in database
     with transaction.atomic():
-        # Prevent duplicate values being inserted
+        # Unique constraint
         with pytest.raises(IntegrityError):
             FeatureValue.objects.create(
                 product=product,
@@ -116,10 +116,11 @@ def test_product_likes(
 ):
     user = sample_active_user
     product = sample_products["products"][0]
+    favorites = sample_likes(user=user, product=product)
 
-    assert sample_likes.user == user
-    assert sample_likes.product == product
-    assert str(sample_likes) == f"{product.title}"
+    assert favorites.user == user
+    assert favorites.product == product
+    assert str(favorites) == f"{product.title}"
 
 
 def test_likes_unique_constraint(
@@ -129,7 +130,10 @@ def test_likes_unique_constraint(
 ):
     user = sample_active_user
     product = sample_products["products"][0]
-
+    favorites = sample_likes(
+        user=user,
+        product=product,
+    )
     with pytest.raises(IntegrityError):
         Like.objects.create(
             user=user,

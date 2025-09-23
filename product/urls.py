@@ -24,7 +24,7 @@ urlpatterns = [
         name="like-toggle",
     ),
     path(
-        "<str:slug>/",
+        "info/<str:slug>/",
         views.ProductDetailAPIView.as_view(),
         name="product-detail",
     ),

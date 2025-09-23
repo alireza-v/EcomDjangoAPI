@@ -1,0 +1,983 @@
+swagger: '2.0'
+info:
+  title: CortexCommerce
+  description: |2
+
+    This API allows users to:
+    - Browse products and categories
+    - Manage shopping carts and orders
+    - Apply discounts and process payments
+    - Track order history and feedback
+    All endpoints are secured where necessary and return JSON responses.
+    For authentication, use JWT tokens
+  license:
+    name: BSD License
+  version: v1
+host: localhost:9000
+schemes:
+- http
+basePath: /
+consumes:
+- application/json
+produces:
+- application/json
+securityDefinitions:
+  Bearer:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: 'JWT Authorization header using the Bearer scheme. Example: ''Bearer
+      {token}'''
+security:
+- Bearer: []
+paths:
+  /api/v1/auth/activate/{uid}/{token}/:
+    get:
+      operationId: api_v1_auth_activate_read
+      summary: Activate user account
+      description: Activate user account using the UID and token
+      parameters: []
+      responses:
+        '200':
+          description: Account activated
+        '400':
+          description: Invalid activation link
+      tags:
+      - Custom Auth
+    parameters:
+    - name: uid
+      in: path
+      required: true
+      type: string
+    - name: token
+      in: path
+      required: true
+      type: string
+  /api/v1/carts/:
+    get:
+      operationId: api_v1_carts_list
+      summary: Fetch cart items
+      description: Return list of user cart items
+      parameters: []
+      responses:
+        '401':
+          description: Unauthorized
+        '200':
+          description: ''
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Cart'
+      tags:
+      - Cart
+    post:
+      operationId: api_v1_carts_create
+      summary: Add products to cart
+      description: Add & remove products from cart
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          required:
+          - product_id
+          type: object
+          properties:
+            action:
+              type: string
+              enum:
+              - add
+              - remove
+            product_id:
+              type: integer
+            quantity:
+              type: integer
+              max: 5
+              min: 1
+          example:
+            action: add
+            product_id: 42
+      responses:
+        '201':
+          description: ''
+          schema:
+            $ref: '#/definitions/Cart'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+      tags:
+      - Cart
+    parameters: []
+  /api/v1/carts/cart/clear/:
+    delete:
+      operationId: api_v1_carts_cart_clear_delete
+      summary: Clear user cart
+      description: Remove cart items
+      parameters: []
+      responses:
+        '204':
+          description: Cart dropped successfully
+        '200':
+          description: Cart already empty
+        '401':
+          description: Unauthorized
+      tags:
+      - Cart
+    parameters: []
+  /api/v1/checkout/:
+    post:
+      operationId: api_v1_checkout_create
+      summary: Start checkout process
+      description: Fetch cart information and create an invoice
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/Checkout'
+      responses:
+        '400':
+          description: Cart empty or out of stock
+        '401':
+          description: Unauthorized
+        '201':
+          description: Order created
+          schema:
+            type: object
+            properties:
+              result:
+                description: Success message
+                type: string
+              status:
+                description: Order status
+                type: string
+              items:
+                description: Processed items in the order
+                type: array
+                items:
+                  type: object
+                  properties:
+                    product:
+                      type: string
+                    quantity:
+                      type: integer
+                    price:
+                      type: string
+              skipped_items:
+                description: Items skipped due to insufficient stock (optional)
+                type: array
+                items:
+                  type: string
+      tags:
+      - Order
+    parameters: []
+  /api/v1/checkout/invoice/:
+    get:
+      operationId: api_v1_checkout_invoice_list
+      summary: List order invoice
+      description: Returns order invoice with detailed info
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Order'
+        '401':
+          description: Unauthorized
+      tags:
+      - Order
+    parameters: []
+  /api/v1/payments/callback/:
+    get:
+      operationId: api_v1_payments_callback_list
+      summary: Verify payment callback
+      description: Verify payment with Zibal gateway using the given trackId
+      parameters:
+      - name: trackId
+        in: query
+        description: Unique transaction ID returned from Zibal
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Payment verification success
+        '400':
+          description: Payment failed or invalid trackId
+        '502':
+          description: Payment gateway connection error
+      tags:
+      - Payment
+    parameters: []
+  /api/v1/payments/create/:
+    post:
+      operationId: api_v1_payments_create_create
+      summary: Request payment for pending order
+      description: Return payment url and track id for pending order
+      parameters: []
+      responses:
+        '200':
+          description: Payment request successfully created
+        '400':
+          description: No pending order or payment gateway error
+        '401':
+          description: Unauthorized
+        '502':
+          description: Payment gateway connection error
+      tags:
+      - Payment
+    parameters: []
+  /api/v1/payments/list/:
+    get:
+      operationId: api_v1_payments_list_list
+      summary: List user payment history
+      description: Returns list of payments associated with authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Payment'
+        '401':
+          description: Unauthorized
+      tags:
+      - Payment
+    parameters: []
+  /api/v1/products/:
+    get:
+      operationId: api_v1_products_list
+      summary: Product list
+      description: |-
+        Fetch categories by slug
+        Products filtering:
+            - min_price
+            - max_price
+            - in_stock
+            - brand
+            - has_discount
+        Paginated lists of products
+      parameters:
+      - name: ordering
+        in: query
+        description: Sorted by price | visit_count | created_at
+        required: false
+        type: string
+        example: -created_at
+      - name: page
+        in: query
+        description: A page number within the paginated result set.
+        required: false
+        type: integer
+      - name: page_size
+        in: query
+        description: Number of results to return per page.
+        required: false
+        type: integer
+      - name: q
+        in: query
+        description: Seach products
+        type: string
+        example: laptop
+      - name: category
+        in: query
+        description: Category info by given slug
+        required: false
+        type: string
+        example: electronics
+      - name: max_price
+        in: query
+        description: Filter products by max_price
+        required: false
+        type: number
+      - name: min_price
+        in: query
+        description: Filter products by min_price
+        required: false
+        type: number
+      - name: in_stock
+        in: query
+        description: Filter by stock availability
+        type: boolean
+        example: true
+      - name: brand
+        in: query
+        description: Filter by brand
+        type: string
+        example: samsung
+      - name: has_discount
+        in: query
+        description: Only show discounted products
+        type: boolean
+        example: true
+      responses:
+        '200':
+          description: ''
+          schema:
+            required:
+            - count
+            - results
+            type: object
+            properties:
+              count:
+                type: integer
+              next:
+                type: string
+                format: uri
+                x-nullable: true
+              previous:
+                type: string
+                format: uri
+                x-nullable: true
+              results:
+                type: array
+                items:
+                  $ref: '#/definitions/Product'
+      tags:
+      - Product
+    parameters: []
+  /api/v1/products/categories/:
+    get:
+      operationId: api_v1_products_categories_list
+      summary: Category list
+      description: Retrieve top-level categories along with subcategories and products
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Category'
+      tags:
+      - Product
+    parameters: []
+  /api/v1/products/info/{slug}/:
+    get:
+      operationId: api_v1_products_info_read
+      summary: Product Detail
+      description: Fetch product details using the slug. Visit count incremented atomically
+      parameters:
+      - name: slug
+        in: path
+        description: Product slug
+        required: true
+        type: string
+      responses:
+        '200':
+          description: ''
+          schema:
+            $ref: '#/definitions/Product'
+        '404':
+          description: Product not found
+        '400':
+          description: Transaction rolled back due to an error
+      tags:
+      - Product
+    parameters:
+    - name: slug
+      in: path
+      required: true
+      type: string
+      format: slug
+      pattern: ^[-\w]+$
+  /api/v1/products/likes/:
+    get:
+      operationId: api_v1_products_likes_list
+      summary: List user likes
+      description: Retrieve list of all products liked by authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: List of likes
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Like'
+        '401':
+          description: Unauthorized
+      tags:
+      - Product Likes
+    post:
+      operationId: api_v1_products_likes_create
+      summary: Like toggler
+      description: Toggle like/unlike for a product
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          required:
+          - product
+          type: object
+          properties:
+            product:
+              description: ID of the product to like/unlike
+              type: integer
+      responses:
+        '200':
+          description: Like removed
+        '201':
+          description: Like created
+          schema:
+            $ref: '#/definitions/Like'
+        '400':
+          description: Bad request
+        '404':
+          description: Product not found
+      tags:
+      - Product Likes
+    parameters: []
+  /api/v1/products/{product_id}/feedbacks/:
+    get:
+      operationId: api_v1_products_feedbacks_list
+      summary: List feedbacks
+      description: List feedbacks using product_id
+      parameters:
+      - name: ordering
+        in: query
+        description: Which field to use when ordering the results.
+        required: false
+        type: string
+      - name: page
+        in: query
+        description: A page number within the paginated result set.
+        required: false
+        type: integer
+      - name: page_size
+        in: query
+        description: Number of results to return per page.
+        required: false
+        type: integer
+      - name: product_id
+        in: path
+        description: Fetch product instance using its id
+        type: integer
+        required: true
+      responses:
+        '200':
+          description: ''
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Feedback'
+        '401':
+          description: Unauthorized
+      tags:
+      - Feedback
+    post:
+      operationId: api_v1_products_feedbacks_create
+      summary: Create Feedback
+      description: Submit feedback for a product using its ID.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/Feedback'
+      responses:
+        '201':
+          description: ''
+          schema:
+            $ref: '#/definitions/Feedback'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+      tags:
+      - Feedback
+    parameters:
+    - name: product_id
+      in: path
+      required: true
+      type: string
+  /auth/jwt/create/:
+    post:
+      operationId: auth_jwt_create_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/TokenObtainPair'
+      responses:
+        '201':
+          description: ''
+          schema:
+            $ref: '#/definitions/TokenObtainPair'
+      tags:
+      - auth
+    parameters: []
+  /auth/jwt/logout/:
+    post:
+      operationId: auth_jwt_logout_create
+      description: |-
+        Takes a token and blacklists it. Must be used with the
+        `rest_framework_simplejwt.token_blacklist` app installed.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/TokenBlacklist'
+      responses:
+        '201':
+          description: ''
+          schema:
+            $ref: '#/definitions/TokenBlacklist'
+      tags:
+      - auth
+    parameters: []
+  /auth/jwt/verify/:
+    post:
+      operationId: auth_jwt_verify_create
+      description: |-
+        Takes a token and indicates if it is valid.  This view provides no
+        information about a token's fitness for a particular use.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/TokenVerify'
+      responses:
+        '201':
+          description: ''
+          schema:
+            $ref: '#/definitions/TokenVerify'
+      tags:
+      - auth
+    parameters: []
+  /auth/users/:
+    post:
+      operationId: auth_users_create
+      description: ''
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/CustomUserCreate'
+      responses:
+        '201':
+          description: ''
+          schema:
+            $ref: '#/definitions/CustomUserCreate'
+      tags:
+      - auth
+    parameters: []
+  /auth/users/reset_password/:
+    post:
+      operationId: auth_users_reset_password
+      description: ''
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/SendEmailReset'
+      responses:
+        '201':
+          description: ''
+          schema:
+            $ref: '#/definitions/SendEmailReset'
+      tags:
+      - auth
+    parameters: []
+  /auth/users/reset_password_confirm/:
+    post:
+      operationId: auth_users_reset_password_confirm
+      description: ''
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/PasswordResetConfirm'
+      responses:
+        '201':
+          description: ''
+          schema:
+            $ref: '#/definitions/PasswordResetConfirm'
+      tags:
+      - auth
+    parameters: []
+definitions:
+  Cart:
+    required:
+    - product_id
+    type: object
+    properties:
+      quantity:
+        title: Quantity
+        type: integer
+        default: 1
+        maximum: 5
+        minimum: 1
+      subtotal:
+        title: Subtotal
+        type: string
+        readOnly: true
+      action:
+        title: Action
+        type: string
+        enum:
+        - add
+        - remove
+        default: add
+      product_id:
+        title: Product id
+        type: integer
+      created_at:
+        title: Created at
+        type: string
+        format: date-time
+        readOnly: true
+      product:
+        title: Product
+        type: string
+        readOnly: true
+  Checkout:
+    required:
+    - address
+    type: object
+    properties:
+      address:
+        title: Address
+        description: Delivery address
+        type: string
+        maxLength: 255
+        minLength: 1
+  OrderItem:
+    required:
+    - quantity
+    type: object
+    properties:
+      id:
+        title: ID
+        type: integer
+        readOnly: true
+      quantity:
+        title: مقدار
+        type: integer
+        maximum: 9223372036854775807
+        minimum: 0
+      price_at_purchase:
+        title: Price at purchase
+        type: string
+        readOnly: true
+      product:
+        title: Product
+        type: string
+        readOnly: true
+  Order:
+    required:
+    - shipping_address
+    - order_items
+    - created_at
+    type: object
+    properties:
+      id:
+        title: ID
+        type: integer
+        readOnly: true
+      status:
+        title: وضعیت
+        type: string
+        enum:
+        - pending
+        - paid
+        - failed
+        - shipped
+      shipping_address:
+        title: آدرس تحویل
+        type: string
+        minLength: 1
+      subtotal:
+        title: Subtotal
+        type: string
+        readOnly: true
+      subtotal_formatted:
+        title: Subtotal formatted
+        type: string
+        readOnly: true
+      order_items:
+        type: array
+        items:
+          $ref: '#/definitions/OrderItem'
+      created_at:
+        title: Created at
+        type: string
+        format: date-time
+  Payment:
+    required:
+    - order
+    - amount
+    type: object
+    properties:
+      order:
+        type: array
+        items:
+          $ref: '#/definitions/Order'
+      track_id:
+        title: Track id
+        type: string
+        maxLength: 100
+        x-nullable: true
+      amount:
+        title: Amount
+        type: string
+        format: decimal
+      formatted_amount:
+        title: Formatted amount
+        type: string
+        readOnly: true
+      status:
+        title: Status
+        type: string
+        enum:
+        - pending
+        - success
+        - failed
+  Product:
+    required:
+    - title
+    - price
+    - created_at
+    type: object
+    properties:
+      id:
+        title: ID
+        type: integer
+        readOnly: true
+      in_stock:
+        title: In stock
+        type: string
+        readOnly: true
+      stock:
+        title: موجودی
+        type: integer
+        maximum: 9223372036854775807
+        minimum: 0
+      title:
+        title: نام
+        type: string
+        maxLength: 255
+        minLength: 1
+      slug:
+        title: شناسه
+        type: string
+        format: slug
+        maxLength: 255
+        x-nullable: true
+      brand:
+        title: برند
+        type: string
+        maxLength: 100
+        x-nullable: true
+      visit_count:
+        title: بازدید ها
+        type: integer
+        maximum: 9223372036854775807
+        minimum: 0
+        x-nullable: true
+      price:
+        title: Price
+        type: number
+        format: decimal
+      price_formatted:
+        title: Price formatted
+        type: string
+        readOnly: true
+      has_discount:
+        title: Has discount
+        type: string
+        readOnly: true
+      discount:
+        title: Discount
+        type: string
+        readOnly: true
+      features:
+        title: Features
+        type: string
+        readOnly: true
+      main_image:
+        title: عکس رسمی
+        type: string
+        readOnly: true
+        x-nullable: true
+        format: uri
+      avg_rating:
+        title: Avg rating
+        type: string
+        readOnly: true
+      created_at:
+        title: Created at
+        type: string
+        format: date-time
+      url:
+        title: Url
+        type: string
+        format: uri
+        readOnly: true
+  Category:
+    required:
+    - title
+    type: object
+    properties:
+      title:
+        title: گروه
+        type: string
+        maxLength: 255
+        minLength: 1
+      breadcrumb:
+        title: Breadcrumb
+        type: string
+        readOnly: true
+      has_discount:
+        title: Has discount
+        type: string
+        readOnly: true
+      discount:
+        title: Discount
+        type: string
+        readOnly: true
+      products_preview:
+        title: Products preview
+        type: string
+        readOnly: true
+      subcategories:
+        title: Subcategories
+        type: string
+        readOnly: true
+  Like:
+    required:
+    - product
+    type: object
+    properties:
+      product:
+        title: Product
+        type: integer
+      associated_product:
+        title: Associated product
+        type: string
+        readOnly: true
+  Feedback:
+    required:
+    - score
+    - comment
+    type: object
+    properties:
+      user:
+        title: User
+        type: string
+        readOnly: true
+      score:
+        title: Score
+        description: Rating from 1 to 5 stars
+        type: integer
+        maximum: 5
+        minimum: 1
+      comment:
+        title: Comment
+        type: string
+        minLength: 1
+      product_id:
+        title: Product id
+        type: integer
+      created_at:
+        title: Created at
+        type: string
+        format: date-time
+        readOnly: true
+      product:
+        title: Product
+        type: string
+        readOnly: true
+  TokenObtainPair:
+    required:
+    - email
+    - password
+    type: object
+    properties:
+      email:
+        title: Email
+        type: string
+        minLength: 1
+      password:
+        title: Password
+        type: string
+        minLength: 1
+  TokenBlacklist:
+    required:
+    - refresh
+    type: object
+    properties:
+      refresh:
+        title: Refresh
+        type: string
+        minLength: 1
+  TokenVerify:
+    required:
+    - token
+    type: object
+    properties:
+      token:
+        title: Token
+        type: string
+        minLength: 1
+  CustomUserCreate:
+    required:
+    - email
+    - password
+    type: object
+    properties:
+      email:
+        title: Email
+        type: string
+        format: email
+        maxLength: 254
+        minLength: 1
+      username:
+        title: Username
+        type: string
+        minLength: 1
+      password:
+        title: Password
+        type: string
+        minLength: 1
+  SendEmailReset:
+    required:
+    - email
+    type: object
+    properties:
+      email:
+        title: Email
+        type: string
+        format: email
+        minLength: 1
+  PasswordResetConfirm:
+    required:
+    - uid
+    - token
+    - new_password
+    type: object
+    properties:
+      uid:
+        title: Uid
+        type: string
+        minLength: 1
+      token:
+        title: Token
+        type: string
+        minLength: 1
+      new_password:
+        title: New password
+        type: string
+        minLength: 1

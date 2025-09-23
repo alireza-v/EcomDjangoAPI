@@ -1,10 +1,11 @@
 from django.db.models import Avg
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import serializers
-from rest_framework.serializers import ModelSerializer
 
 from product.models import (
     Category,
+    Discount,
     FeatureValue,
     Feedback,
     Like,
@@ -23,6 +24,12 @@ class BaseSerializer(serializers.HyperlinkedModelSerializer):
         return {k: v for k, v in rep.items() if v not in (None, "", [], {})}
 
 
+class DiscountSerializer(BaseSerializer):
+    class Meta:
+        model = Discount
+        fields = ["name", "percent", "end_date", "product", "category"]
+
+
 class ProductSerializer(BaseSerializer):
     url = serializers.HyperlinkedIdentityField(
         view_name="product-detail",
@@ -36,25 +43,29 @@ class ProductSerializer(BaseSerializer):
     avg_rating = serializers.SerializerMethodField()
     in_stock = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+    has_discount = serializers.SerializerMethodField()
+    discount = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = [
             "id",
-            "stock",
             "in_stock",
+            "stock",
             "title",
             "slug",
             "brand",
             "visit_count",
             "price",
             "price_formatted",
+            "has_discount",
+            "discount",
             "features",
-            "url",
             "main_image",
             "slug",
             "avg_rating",
             "created_at",
+            "url",
         ]
 
     def get_price_formatted(self, obj):
@@ -62,7 +73,7 @@ class ProductSerializer(BaseSerializer):
         return f"{obj.price:,.0f}"
 
     def get_features(self, obj):
-        """Procut related features being called including name and value"""
+        """Product related features being called including name and value"""
         feature_qs = obj.product_features.all()
         return FeatureValueSerializer(
             feature_qs,
@@ -70,24 +81,49 @@ class ProductSerializer(BaseSerializer):
         ).data
 
     def get_avg_rating(self, obj):
-        """avg_rating being called from the view"""
-        return getattr(obj, "avg_rating", 0)
+        """
+        avg_rating being called from the view
+        """
+        avg_rating = getattr(obj, "avg_rating", 0) or 0
+        return f"{avg_rating:,.1f}"
 
     def get_in_stock(self, obj):
         """Boolean value of stock"""
         return obj.stock > 0
+
+    def get_has_discount(self, obj):
+        "bool value for product discounts"
+        qs = obj.product_discount.filter(end_date__gte=timezone.now())
+        return qs.exists()
+
+    def get_discount(self, obj):
+        active_discount = obj.product_discount.filter(
+            end_date__gte=timezone.now()
+        ).first()
+        if active_discount:
+            return [
+                {
+                    "name": active_discount.name,
+                    "percent": active_discount.percent,
+                    "end_date": f"{active_discount.end_date:%Y-%m-%d %H:%M:%S}",
+                }
+            ]
 
 
 class CategorySerializer(BaseSerializer):
     products_preview = serializers.SerializerMethodField()
     subcategories = serializers.SerializerMethodField()
     breadcrumb = serializers.SerializerMethodField()
+    has_discount = serializers.SerializerMethodField()
+    discount = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
         fields = [
             "title",
             "breadcrumb",
+            "has_discount",
+            "discount",
             "products_preview",
             "subcategories",
         ]
@@ -123,6 +159,24 @@ class CategorySerializer(BaseSerializer):
             many=True,
             context=self.context,
         ).data
+
+    def get_has_discount(self, obj):
+        "bool value for category discounts"
+        qs = obj.category_discount.filter(end_date__gte=timezone.now())
+        return qs.exists()
+
+    def get_discount(self, obj):
+        active_discount = obj.category_discount.filter(
+            end_date__gte=timezone.now()
+        ).first()
+        if active_discount:
+            return [
+                {
+                    "name": active_discount.name,
+                    "percent": active_discount.percent,
+                    "end_date": f"{active_discount.end_date:%Y-%m-%d %H:%M:%S}",
+                },
+            ]
 
 
 class FeatureValueSerializer(BaseSerializer):
@@ -161,7 +215,7 @@ class FeedbackSerializer(BaseSerializer):
         required=False,
     )
     product = serializers.SerializerMethodField()
-    rate = serializers.IntegerField(
+    score = serializers.IntegerField(
         help_text="Rating from 1 to 5 stars",
         min_value=1,
         max_value=5,
@@ -174,7 +228,7 @@ class FeedbackSerializer(BaseSerializer):
         model = Feedback
         fields = [
             "user",
-            "rate",
+            "score",
             "comment",
             "product_id",
             "created_at",
@@ -187,7 +241,8 @@ class FeedbackSerializer(BaseSerializer):
             qs = obj.product.product_features.all()
             return {
                 "title": obj.product.title,
-                "price": obj.product.price_formatter,
+                "price": obj.product.price,
+                "formatted_price": obj.product.price_formatter,
                 "features": [
                     {
                         "name": item.feature.name,
@@ -273,17 +328,24 @@ class ProductDetailSerializer(BaseSerializer):
 
 
 class LikeSerializer(BaseSerializer):
-    user = serializers.StringRelatedField()
     product = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),
         write_only=True,
     )
-    product_related = serializers.StringRelatedField(source="product")
+    associated_product = serializers.SerializerMethodField(source="product")
 
     class Meta:
         model = Like
         fields = [
-            "user",
             "product",
-            "product_related",
+            "associated_product",
         ]
+
+    def get_associated_product(self, obj):
+        qs = obj.product
+        return {
+            "id": qs.id,
+            "title": qs.title,
+            "price": qs.price,
+            "price_formatted": qs.price_formatter,
+        }
