@@ -1,7 +1,7 @@
+from django.db import transaction
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -14,12 +14,11 @@ class CartListCreateAPIView(generics.ListCreateAPIView):
     List & Create user cart items using the given product ID
     """
 
-    permission_classes = [IsAuthenticated]
     serializer_class = CartSerializer
 
     def get_queryset(self):
         """
-        Return user specific cart associated with the related products sorted by the latest ones
+        Return user specific cart associated with related products sorted by latest ones
         """
         return (
             CartItem.objects.filter(user=self.request.user)
@@ -34,7 +33,7 @@ class CartListCreateAPIView(generics.ListCreateAPIView):
         operation_summary="Fetch cart items",
         operation_description="Return list of user cart items",
         responses={
-            401: openapi.Response("Unauthorized"),
+            401: openapi.Response(description="Unauthorized"),
             200: CartSerializer(many=True),
         },
         tags=["Cart"],
@@ -62,8 +61,8 @@ class CartListCreateAPIView(generics.ListCreateAPIView):
         ),
         responses={
             201: CartSerializer(),
-            400: openapi.Response("Validation error"),
-            401: openapi.Response("Unauthorized"),
+            400: openapi.Response(description="Validation error"),
+            401: openapi.Response(description="Unauthorized"),
         },
         tags=["Cart"],
     )
@@ -76,16 +75,12 @@ class ClearCartAPIView(APIView):
     Clear user cart items
     """
 
-    permission_classes = [IsAuthenticated]
-
     @swagger_auto_schema(
         operation_summary="Clear user cart",
         operation_description="Remove cart items",
         responses={
             204: openapi.Response(description="Cart dropped successfully"),
-            200: openapi.Response(
-                description="Cart already empty",
-            ),
+            200: openapi.Response(description="Cart already empty"),
             401: openapi.Response(description="Unauthorized"),
         },
         tags=["Cart"],

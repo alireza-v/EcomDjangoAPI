@@ -2,14 +2,20 @@ from rest_framework.filters import OrderingFilter
 
 
 class CustomOrderingFilter(OrderingFilter):
-    """Custom ordering renamed for convinience"""
+    """Custom ordering renamed for convenience"""
 
     alias_map = {
         "latest": "created_at",
         "most_visited": "visit_count",
     }
 
-    def remove_invalid_fields(self, queryset, ordering, view, request):
+    def remove_invalid_fields(
+        self,
+        queryset,
+        ordering,
+        view,
+        request,
+    ):
         new_ordering = []
         for field in ordering:
             desc = field.startswith("-")

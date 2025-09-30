@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -47,9 +49,9 @@ class CartItem(TimestampModel):
     @property
     def subtotal(self):
         """
-        Total amount after discount applied
+        Return the subtotal after the discount is applied
         """
-        return f"{self.quantity * self.product.discounted_price():,.0f}"
+        return Decimal(self.quantity) * self.product.discounted_price
 
     def __str__(self):
         return f"{self.user.email} - {self.product.title} (x{self.quantity})"

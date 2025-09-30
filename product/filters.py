@@ -8,10 +8,10 @@ from product.models import Product
 class ProductFilter(django_filters.FilterSet):
     """
     Product filtering:
-        - min_price: filter by min price
-        - max_price: filter max price
-        - in_stock: filter only available products in stock
-        - brand: filter by the brand
+        - min_price
+        - max_price
+        - in_stock
+        - brand
     """
 
     min_price = django_filters.NumberFilter(
@@ -22,18 +22,18 @@ class ProductFilter(django_filters.FilterSet):
         field_name="price",
         lookup_expr="lte",
     )
+    has_discount = django_filters.BooleanFilter(method="filter_discount")
     in_stock = django_filters.BooleanFilter(method="filter_in_stock")
     brand = django_filters.CharFilter(method="filter_brand")
-    has_discount = django_filters.BooleanFilter(method="filter_discount")
 
     class Meta:
         model = Product
         fields = [
             "min_price",
             "max_price",
+            "has_discount",
             "in_stock",
             "brand",
-            "has_discount",
         ]
 
     def filter_in_stock(
@@ -42,14 +42,27 @@ class ProductFilter(django_filters.FilterSet):
         name,
         value,
     ):
-        """The availble products in stock"""
         if value:
             return queryset.filter(stock__gt=0)
-        return queryset.filter(stock__lte=0)
+        return queryset.filter(stock=0)
 
-    def filter_brand(self, queryset, name, value):
-        return queryset.filter(Q(brand__icontains=value) | Q(title__icontains=value))
+    def filter_brand(
+        self,
+        queryset,
+        name,
+        value,
+    ):
+        if not value:
+            return queryset
+        value = str(value).strip()
+        qs = queryset.filter(Q(brand__icontains=value) | Q(title__icontains=value))
+        return qs
 
-    def filter_discount(self, queryset, name, value):
-        qs = queryset.filter(product_discount__end_date__gte=timezone.now())
+    def filter_discount(
+        self,
+        queryset,
+        name,
+        value,
+    ):
+        qs = queryset.filter(product_discounts__end_date__gte=timezone.now())
         return qs

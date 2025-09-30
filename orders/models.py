@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from product.models import Product
@@ -15,13 +16,12 @@ class Order(TimestampModel):
 
     class Status(models.TextChoices):
         """
-        Order status being updated at payment time
+        Order status being updated at checkout
         """
 
-        PENDING = "pending", _("PENDING")
-        PAID = "paid", _("PAID")
-        FAILED = "failed", _("FAILED")
-        SHIPPED = "shipped", _("SHIPPED")
+        PENDING = "pending", _("Pending")
+        PAID = "paid", _("Paid")
+        FAILED = "failed", _("Failed")
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -46,12 +46,16 @@ class Order(TimestampModel):
         default=0,
         help_text="Snapshot of the total price at checkout time",
     )
+    paid_at = models.DateTimeField(
+        verbose_name=_("زمان پرداخت"),
+        blank=True,
+        null=True,
+    )
 
     @property
     def total(self):
         """
-        Returns computed total amount
-        i.e. sum of all OrderItem prices * quantities
+        Return computed total amount
         """
         return sum(
             Decimal(item.price_at_purchase) * item.quantity
@@ -69,7 +73,7 @@ class Order(TimestampModel):
 
 class OrderItem(TimestampModel):
     """
-    Store detailed info about each product in Order, i.e. quantity | price
+    Store detailed info about each order
     """
 
     order = models.ForeignKey(
@@ -80,7 +84,7 @@ class OrderItem(TimestampModel):
     )
     product = models.ForeignKey(
         Product,
-        on_delete=models.PROTECT,  # Prevent deletion if order existed
+        on_delete=models.PROTECT,
         verbose_name=_("محصول"),
         related_name="product_order_items",
     )

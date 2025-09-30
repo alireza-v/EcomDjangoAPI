@@ -1,4 +1,5 @@
 import os
+from logging import getLogger
 
 import requests
 from django.db import transaction
@@ -15,14 +16,17 @@ from payments.serializers import PaymentSerializer
 
 load_dotenv()
 
+logger = getLogger()
 
-class PaymentRequest(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    payment_url = "https://gateway.zibal.ir/v1/request"
+
+class PaymentRequestAPIView(APIView):
+    payment_url = os.getenv("ZIBAL_PAYMENT_URL")
+    request_payment = os.getenv("ZIBAL_REQUEST_PAYMENT")
 
     @swagger_auto_schema(
         operation_summary="Request payment for pending order",
         operation_description="Return payment url and track id for pending order",
+        request_body=None,
         responses={
             200: openapi.Response(
                 description="Payment request successfully created",
@@ -41,32 +45,34 @@ class PaymentRequest(APIView):
         """
         Return payment on pending order
         """
+
         pending_order = (
             Order.objects.filter(
                 user=request.user,
                 status=Order.Status.PENDING,
             )
             .prefetch_related("order_items")
-            .order_by("-created_at")
             .first()
         )
 
         if not pending_order:
             return Response(
-                {"detail": "No pending order found"},
+                {
+                    "detail": "No pending order found",
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         existing_payment = Payment.objects.filter(
-            order=pending_order,
-            status=Payment.Status.PENDING,
+            order=pending_order, status=Payment.Status.PENDING
         ).last()
 
         if existing_payment:
             return Response(
                 {
                     "track_id": existing_payment.track_id,
-                    "payment_url": f"https://gateway.zibal.ir/start/{existing_payment.track_id}",
+                    "payment_url": self.request_payment
+                    + f"/{existing_payment.track_id}",
                     "message": "Already initiated payment",
                 },
                 status=status.HTTP_200_OK,
@@ -78,9 +84,9 @@ class PaymentRequest(APIView):
                 json={
                     "merchant": os.getenv("ZIBAL_MERCHANT", "zibal"),
                     "amount": int(pending_order.total_amount),
-                    "callbackUrl": os.getenv("DOMAIN") + "/api/v1/payments/callback/",
+                    "callbackUrl": os.getenv("DOMAIN") + os.getenv("PAYMENT_CALLBACK"),
                 },
-                timeout=10,
+                timeout=5,
             ).json()
         except requests.RequestException as e:
             return Response(
@@ -90,38 +96,57 @@ class PaymentRequest(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+        # Success response
         if response["result"] == 100:
-            Payment.objects.create(
-                order=pending_order,
-                user=request.user,
-                track_id=response["trackId"],
-                amount=pending_order.total_amount,
-                raw_response=response,
-            )
+            try:
+                with transaction.atomic():
+                    Payment.objects.create(
+                        order=pending_order,
+                        user=request.user,
+                        track_id=response["trackId"],
+                        amount=pending_order.total_amount,
+                        raw_response=response,
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Failed to persist payment info {response['trackId']}: {str(e)}"
+                )
+                return Response(
+                    {
+                        "detail": "Internal error happened while creating payment credentials",
+                        "track_id": response["trackId"],
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
             return Response(
                 {
                     "trackId": response["trackId"],
                     "result": response["result"],
                     "message": response["message"],
-                    "payment_url": f"https://gateway.zibal.ir/start/{response['trackId']}",
+                    "payment_url": f"{self.request_payment}/{response['trackId']}",
                 },
                 status=status.HTTP_200_OK,
             )
+        # Failure response
         else:
             return Response(
                 {
                     "detail": "Payment gateway error",
+                    "result": response["result"],
+                    "message": response["message"],
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
 
-class PaymentCallback(APIView):
+class PaymentVerifyAPIView(APIView):
     """
-    Verify the payment using zibal gateway and update both payment and order status
+    Verify the payment and update both payment and order status
     """
 
-    verify_url = "https://gateway.zibal.ir/v1/verify"
+    permission_classes = [permissions.AllowAny]
+    verify_url = os.getenv("ZIBAL_VERIFY_PAYMENT")
 
     @swagger_auto_schema(
         operation_summary="Verify payment callback",
@@ -154,25 +179,25 @@ class PaymentCallback(APIView):
         if not track_id:
             return Response(
                 {
-                    "detail": "trackId required",
+                    "detail": "trackId not provided",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            payment = Payment.objects.get(
+            payment = Payment.objects.select_for_update().get(
                 track_id=track_id,
                 status=Payment.Status.PENDING,
             )
         except Payment.DoesNotExist:
             return Response(
                 {
-                    "detail": "No payment found",
+                    "detail": "No payment record found",
                 },
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Verify zibal payment
+        # Verify payment
         try:
             response = requests.post(
                 self.verify_url,
@@ -180,7 +205,7 @@ class PaymentCallback(APIView):
                     "merchant": os.getenv("ZIBAL_MERCHANT", "zibal"),
                     "trackId": track_id,
                 },
-                timeout=10,
+                timeout=5,
             ).json()
         except requests.RequestException as e:
             return Response(
@@ -191,41 +216,26 @@ class PaymentCallback(APIView):
             )
 
         # Success payment
-        if response["result"] == 100:
-            order = payment.order
-
-            payment.status = "success"
+        if response["result"] in [100, 201]:
+            payment.status = Payment.Status.SUCCESS
             payment.raw_response = response
             payment.save(update_fields=["status", "raw_response"])
 
+            order = payment.order
             order.status = Order.Status.PAID
             order.save(update_fields=["status"])
 
             return Response(
                 {
-                    "result": "Payment was success",
+                    "result": "Payment was successful",
+                    "track_id": track_id,
                 },
                 status=status.HTTP_200_OK,
             )
 
-        # Already verified
-        elif response["result"] == 201:
-            order = payment.order
-            payment.status = "success"
-            payment.raw_response = response
-            payment.save(update_fields=["status", "raw_response"])
-
-            order.status = Order.Status.PAID
-            order.save(update_fields=["status"])
-            return Response(
-                {
-                    "detail": "Payment success",
-                },
-                status=status.HTTP_200_OK,
-            )
         # Payment failed
         else:
-            payment.status = "failed"
+            payment.status = Payment.Status.FAILED
             payment.raw_response = response
             payment.save(update_fields=["status", "raw_response"])
 
@@ -236,7 +246,8 @@ class PaymentCallback(APIView):
 
 
 class PaymentHistoryAPIView(generics.ListAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+    """User payment history"""
+
     serializer_class = PaymentSerializer
 
     def get_queryset(self):

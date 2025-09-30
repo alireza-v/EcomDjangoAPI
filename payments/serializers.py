@@ -5,7 +5,6 @@ from payments.models import Payment
 
 
 class PaymentSerializer(serializers.ModelSerializer):
-    formatted_amount = serializers.SerializerMethodField()
     order = OrderSerializer(many=True)
 
     class Meta:
@@ -14,9 +13,5 @@ class PaymentSerializer(serializers.ModelSerializer):
             "order",
             "track_id",
             "amount",
-            "formatted_amount",
             "status",
         ]
-
-    def get_formatted_amount(self, obj):
-        return f"{obj.amount:,.0f}"

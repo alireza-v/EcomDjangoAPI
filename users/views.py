@@ -3,8 +3,8 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework import permissions, status
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 User = get_user_model()
@@ -21,6 +21,7 @@ User = get_user_model()
     tags=["Custom Auth"],
 )
 @api_view(["GET"])
+@permission_classes([permissions.AllowAny])
 def activate_user_view(
     request,
     uid,

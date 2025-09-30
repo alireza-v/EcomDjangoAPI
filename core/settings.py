@@ -98,16 +98,12 @@ DJOSER = {
     "TOKEN_MODEL": None,
 }
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=5),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=2),
-    "ALGORITHM": "HS256",
-    "SIGNING_KEY": os.getenv("JWT_SECRET_KEY"),
-}
-
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.UserRateThrottle",
@@ -123,6 +119,14 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "users.exceptions.custom_exception_handler",
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
 }
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=5),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=2),
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": os.getenv("JWT_SECRET_KEY"),
+}
+
 
 swagger_settings.SECURITY_DEFINITIONS = {
     "Bearer": {
@@ -299,10 +303,10 @@ LOGGING = {
     "loggers": {
         "django": {
             "handlers": ["console", "file"],
-            "level": "DEBUG",  # use INFO or ERROR in production
+            "level": "DEBUG",
             "propagate": True,
         },
-        "product": {  # your app
+        "product": {
             "handlers": ["console", "file"],
             "level": "DEBUG",
             "propagate": False,

@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 from orders.models import Order
 from users.models import TimestampModel
@@ -10,6 +11,7 @@ class Payment(TimestampModel):
         PENDING = "pending", "Pending"
         SUCCESS = "success", "Success"
         FAILED = "failed", "Failed"
+        EXPIRED = "expired", "Expired"
 
     order = models.ForeignKey(
         Order,
@@ -27,13 +29,24 @@ class Payment(TimestampModel):
         blank=True,
         null=True,
     )
-    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+    )
     status = models.CharField(
         max_length=50,
         choices=Status.choices,
         default=Status.PENDING,
     )
-    raw_response = models.JSONField(null=True, blank=True)
+    raw_response = models.JSONField(
+        null=True,
+        blank=True,
+    )
+    paid_at = models.DateTimeField(
+        verbose_name=_("زمان پرداخت"),
+        blank=True,
+        null=True,
+    )
 
     def __str__(self):
         return f"Payment for {self.order}"

@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import F
 from rest_framework import serializers
 
 from cart.models import (
@@ -8,7 +9,8 @@ from product.models import Product
 from product.serializers import BaseSerializer
 
 
-class CartSerializer(BaseSerializer):
+class CartSerializer(serializers.ModelSerializer):
+    user_info = serializers.SerializerMethodField()
     action = serializers.ChoiceField(
         choices=[
             "add",
@@ -43,42 +45,51 @@ class CartSerializer(BaseSerializer):
             "product_id",
             "created_at",
             "product",
+            "user_info",
         ]
 
+    def get_user_info(self, obj):
+        return {
+            "id": obj.user.id,
+            "email": obj.user.email,
+        }
+
     def get_product(self, obj):
-        """Return user cart info"""
+        """Return cart related products"""
         product = obj.product
         features = product.product_features.all()
-        discount = product.product_discount.all()
+        discounts = product.product_discounts.all()
 
         return {
             "id": product.id,
             "in_stock": product.stock >= 1,
             "title": product.title,
             "price": product.price,
-            "formatted_price": f"{product.price:,.0f}",
             "main_image": product.main_image or None,
-            "discount": [
+            "discounts": [
                 {
-                    "name": d.name,
-                    "percent": f"{d.percent:,.1f}",
-                    "end_date": f"{d.end_date:%Y-%m-%d %H:%M:%S}",
+                    "name": value.name,
+                    "percent": f"{value.percent:,.1f}",
+                    "end_date": f"{value.end_date:%Y-%m-%d %H:%M:%S}",
                 }
-                for d in discount
+                for value in discounts
             ],
             "features": [
                 {
-                    "name": f.feature.name,
-                    "value": f.value,
+                    "name": feature.feature.name,
+                    "value": feature.value,
                 }
-                for f in features
+                for feature in features
             ],
         }
 
     def validate(self, attrs):
+        """
+        Validate total number againts cart max limit
+        Validate total number against stock
+        """
         product = attrs.get("product_id")
         buy_quantity = attrs.get("quantity", 1)
-
         action = attrs.get("action", "add")
         user = self.context["request"].user
         cart_max_limit = 5  # cart limitation
@@ -87,6 +98,7 @@ class CartSerializer(BaseSerializer):
             user=user,
             product=product,
         ).first()
+
         cart_quantity = cart.quantity if cart else 0
         total_quantity = cart_quantity + buy_quantity
 
@@ -95,50 +107,58 @@ class CartSerializer(BaseSerializer):
                 raise serializers.ValidationError(
                     {"detail": f"You have reached the cart limit ({cart_max_limit})"}
                 )
-            if total_quantity > product.stock:
+            elif total_quantity > product.stock:
                 raise serializers.ValidationError(
-                    {"detail": f"Quantity exceeds available stock({product.stock})"}
+                    {"detail": f"Quantity exceeds available stock ({product.stock})"}
                 )
+        elif action == "remove":
+            if not cart:
+                raise serializers.ValidationError({"detail": "Cart is empty"})
 
+            if buy_quantity > cart.quantity:
+                raise serializers.ValidationError(
+                    {"detail": "Cannot remove more than available"}
+                )
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         data = validated_data
-
         user = self.context["request"].user
         product = data.get("product_id")
-        quantity = data.get("quantity", 1)
+        buy_quantity = data.get("quantity", 1)
         action = data.get("action", "add")
 
-        with transaction.atomic():
-            if action == "remove":
-                try:
-                    user_cart = CartItem.objects.get(user=user, product=product)
-                except CartItem.DoesNotExist:
-                    raise serializers.ValidationError({"detail": "Cart is empty"})
+        cart_qs = CartItem.objects.filter(
+            user=user,
+            product=product,
+        ).select_for_update()
+        cart = cart_qs.first()
 
-                if quantity > user_cart.quantity:
-                    raise serializers.ValidationError(
-                        {"detail": "Cannot remove more than available"}
-                    )
-                user_cart.quantity -= quantity
-
-                if user_cart.quantity <= 0:
-                    user_cart.delete()
-                else:
-                    user_cart.save()
-
-            elif action == "add":
-                user_cart, created = CartItem.objects.get_or_create(
-                    user=user,
-                    product=product,
-                    defaults={
-                        "quantity": quantity,
-                    },
+        if action == "remove":
+            if buy_quantity > cart.quantity:
+                raise serializers.ValidationError(
+                    {"detail": "Cannot remove more than available"}
                 )
 
-                if not created:
-                    user_cart.quantity += quantity
-                    user_cart.save()
+            cart.quantity = F("quantity") - buy_quantity
+            cart.save(update_fields=["quantity"])
+            cart.refresh_from_db()
+            if cart.quantity == 0:
+                cart.delete()
+                cart = CartItem(user=user, product=product, quantity=0)
+            return cart
 
-            return user_cart
+        elif action == "add":
+            if not cart:
+                cart = CartItem.objects.create(
+                    user=user,
+                    product=product,
+                    quantity=buy_quantity,
+                )
+            else:
+                cart.quantity = F("quantity") + buy_quantity
+                cart.save(update_fields=["quantity"])
+                cart.refresh_from_db()
+
+            return cart

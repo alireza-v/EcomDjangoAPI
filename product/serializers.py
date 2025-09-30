@@ -93,11 +93,11 @@ class ProductSerializer(BaseSerializer):
 
     def get_has_discount(self, obj):
         "bool value for product discounts"
-        qs = obj.product_discount.filter(end_date__gte=timezone.now())
+        qs = obj.product_discounts.filter(end_date__gte=timezone.now())
         return qs.exists()
 
     def get_discount(self, obj):
-        active_discount = obj.product_discount.filter(
+        active_discount = obj.product_discounts.filter(
             end_date__gte=timezone.now()
         ).first()
         if active_discount:
@@ -162,11 +162,11 @@ class CategorySerializer(BaseSerializer):
 
     def get_has_discount(self, obj):
         "bool value for category discounts"
-        qs = obj.category_discount.filter(end_date__gte=timezone.now())
+        qs = obj.category_discounts.filter(end_date__gte=timezone.now())
         return qs.exists()
 
     def get_discount(self, obj):
-        active_discount = obj.category_discount.filter(
+        active_discount = obj.category_discounts.filter(
             end_date__gte=timezone.now()
         ).first()
         if active_discount:

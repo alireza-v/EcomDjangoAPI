@@ -61,8 +61,8 @@ class ProductListAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         """
-        Return products under the given  category identifier(slug)
-        Example: ?category = str:slug
+        Return products under the given  category by the given slug
+        Example: ?category = <str:slug>
         """
 
         qs = Product.objects.annotate(avg_rating=Avg("product_feedbacks__rating"))
@@ -277,8 +277,8 @@ class FeedbackListCreateAPIView(generics.ListCreateAPIView):
         """
         Authentication required only for POST requests
         """
-        if self.request.method == "POST":
-            return [permissions.IsAuthenticated()]
+        if self.request.method == "GET":
+            return [permissions.AllowAny()]
         return super().get_permissions()
 
     @swagger_auto_schema(
@@ -321,7 +321,6 @@ class LikeToggleCreateAPIView(APIView):
     Like & Unlike a product
     """
 
-    permission_classes = [permissions.IsAuthenticated]
     serializer_class = LikeSerializer
 
     @swagger_auto_schema(

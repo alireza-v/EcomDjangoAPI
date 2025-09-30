@@ -44,7 +44,6 @@ class OrderItemSerializer(BaseSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     order_items = OrderItemSerializer(many=True)
     subtotal = serializers.ReadOnlyField(source="total_amount")
-    subtotal_formatted = serializers.SerializerMethodField()
 
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
 
@@ -55,10 +54,6 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "shipping_address",
             "subtotal",
-            "subtotal_formatted",
             "order_items",
             "created_at",
         ]
-
-    def get_subtotal_formatted(self, obj):
-        return f"{obj.total_amount:,.0f}"

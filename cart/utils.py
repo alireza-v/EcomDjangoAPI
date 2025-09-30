@@ -7,22 +7,22 @@ def get_cart_items(user):
     - Return valid carts and out-of-stock items
     """
 
-    user_cart = (
+    cart = (
         CartItem.objects.filter(user=user).select_related("product").select_for_update()
     )
 
-    if not user_cart.exists():
+    if not cart.exists():
         return [], ["No cart found"]
 
     cart_items, out_of_stock = [], []
 
-    for item in user_cart:
+    for item in cart:
         product = item.product
         stock = product.stock
         cart_quantity = item.quantity
 
         # out-of-stock items skipped
-        if cart_quantity >= stock:
+        if cart_quantity > stock:
             out_of_stock.append(product.title)
             continue
 

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator
@@ -175,16 +177,18 @@ class Product(TimestampModel):
         """
         Find max discount for products and  categories
         """
-        discounts = list(self.product_discount.filter(end_date__gte=timezone.now()))
+        discounts = list(self.product_discounts.filter(end_date__gte=timezone.now()))
         if self.category:
             discounts += list(
-                self.category.category_discount.filter(end_date__gte=timezone.now())
+                self.category.category_discounts.filter(end_date__gte=timezone.now())
             )
         return max([d.percent for d in discounts], default=0)
 
+    @property
     def discounted_price(self):
-        discount = self.get_discount()
-        return self.price * (100 - discount) / 100
+        discount = Decimal(self.get_discount())
+        price = Decimal(self.price)
+        return price * (Decimal("100") - discount) / Decimal("100")
 
     @property
     def price_formatter(self):
@@ -225,7 +229,7 @@ class Discount(TimestampModel):
         on_delete=models.CASCADE,
         blank=True,
         null=True,
-        related_name="product_discount",
+        related_name="product_discounts",
     )
     category = models.ForeignKey(
         Category,
@@ -233,7 +237,7 @@ class Discount(TimestampModel):
         on_delete=models.CASCADE,
         blank=True,
         null=True,
-        related_name="category_discount",
+        related_name="category_discounts",
     )
 
     def __str__(self):

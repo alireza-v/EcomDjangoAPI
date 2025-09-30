@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.db.models import F
+from rest_framework import serializers
 
 from cart.models import CartItem
 from orders.models import Order, OrderItem
@@ -10,15 +13,24 @@ def create_order(
     cart_items,
 ):
     """
-    - Create order & order items
+    - Create order and order items
     - Stock value deducted
     - User cart deleted
     """
 
     # Calculate discount
-    subtotal = sum(
-        cart.product.discounted_price() * cart.quantity for cart in cart_items
+    subtotal = sum(cart.product.discounted_price * cart.quantity for cart in cart_items)
+    pending_order = Order.objects.filter(
+        user=user,
+        status=Order.Status.PENDING,
     )
+
+    if pending_order.exists():
+        raise serializers.ValidationError(
+            {
+                "detail": "Pending order already exists",
+            }
+        )
 
     order = Order.objects.create(
         user=user,
@@ -31,7 +43,7 @@ def create_order(
             order=order,
             product=cart.product,
             quantity=cart.quantity,
-            price_at_purchase=cart.product.discounted_price(),
+            price_at_purchase=cart.product.discounted_price,
         )
         for cart in cart_items
     ]

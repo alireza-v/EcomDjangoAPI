@@ -14,7 +14,7 @@ from orders.utils import create_order
 
 class CheckoutAPIView(APIView):
     """
-    Start the checkout process with partial fulfillment support
+    Checkout process
 
     Functionality:
         1. Fetch user cart items
@@ -23,7 +23,6 @@ class CheckoutAPIView(APIView):
         5. Deduct stock and clear user cart
     """
 
-    permission_classes = [IsAuthenticated]
     serializer_class = CheckoutSerializer
 
     @swagger_auto_schema(
@@ -91,13 +90,14 @@ class CheckoutAPIView(APIView):
             cart_items=cart_items,
         )
         response_data = {
-            "result": "Order created",
+            "result": "Order creation success",
             "status": order.status,
             "items": [
                 {
+                    "id": item.product.id,
                     "product": item.product.title,
                     "quantity": item.quantity,
-                    "price": f"{item.price_at_purchase:,.0f}",
+                    "price": item.price_at_purchase,
                 }
                 for item in order_items
             ],
@@ -116,7 +116,6 @@ class InvoiceAPIView(generics.ListAPIView):
     List user related orders and order items
     """
 
-    permission_classes = [IsAuthenticated]
     serializer_class = OrderSerializer
 
     def get_queryset(self):
