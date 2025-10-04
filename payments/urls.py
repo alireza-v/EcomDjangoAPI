@@ -13,5 +13,9 @@ urlpatterns = [
         views.PaymentVerifyAPIView.as_view(),
         name="payment-callback",
     ),
-    path("list/", views.PaymentHistoryAPIView.as_view(), name="payment-history"),
+    path(
+        "list/",
+        views.PaymentHistoryAPIView.as_view(),
+        name="payment-history",
+    ),
 ]

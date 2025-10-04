@@ -33,7 +33,7 @@ client = APIClient()
 @pytest.fixture
 def auth_client(sample_active_user):
     """
-    Return an authenticated API client & User
+    Return authenticated User and API client
     """
     api_client = client
 

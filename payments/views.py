@@ -24,8 +24,8 @@ class PaymentRequestAPIView(APIView):
     request_payment = os.getenv("ZIBAL_REQUEST_PAYMENT")
 
     @swagger_auto_schema(
-        operation_summary="Request payment for pending order",
-        operation_description="Return payment url and track id for pending order",
+        operation_summary="Request payment on pending orders",
+        operation_description="Return payment url and track id based on pending order",
         request_body=None,
         responses={
             200: openapi.Response(
@@ -41,6 +41,7 @@ class PaymentRequestAPIView(APIView):
         },
         tags=["Payment"],
     )
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         """
         Return payment on pending order
@@ -58,14 +59,15 @@ class PaymentRequestAPIView(APIView):
         if not pending_order:
             return Response(
                 {
-                    "detail": "No pending order found",
+                    "detail": "Pending order not found",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         existing_payment = Payment.objects.filter(
-            order=pending_order, status=Payment.Status.PENDING
-        ).last()
+            order=pending_order,
+            status=Payment.Status.PENDING,
+        ).first()
 
         if existing_payment:
             return Response(
@@ -99,14 +101,13 @@ class PaymentRequestAPIView(APIView):
         # Success response
         if response["result"] == 100:
             try:
-                with transaction.atomic():
-                    Payment.objects.create(
-                        order=pending_order,
-                        user=request.user,
-                        track_id=response["trackId"],
-                        amount=pending_order.total_amount,
-                        raw_response=response,
-                    )
+                Payment.objects.create(
+                    order=pending_order,
+                    user=request.user,
+                    track_id=response["trackId"],
+                    amount=pending_order.total_amount,
+                    raw_response=response,
+                )
             except Exception as e:
                 logger.error(
                     f"Failed to persist payment info {response['trackId']}: {str(e)}"
@@ -173,19 +174,18 @@ class PaymentVerifyAPIView(APIView):
         },
         tags=["Payment"],
     )
-    @transaction.atomic
     def get(self, request, *args, **kwargs):
         track_id = request.GET.get("trackId")
         if not track_id:
             return Response(
                 {
-                    "detail": "trackId not provided",
+                    "detail": "track_id not provided",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            payment = Payment.objects.select_for_update().get(
+            payment = Payment.objects.get(
                 track_id=track_id,
                 status=Payment.Status.PENDING,
             )
@@ -203,46 +203,50 @@ class PaymentVerifyAPIView(APIView):
                 self.verify_url,
                 json={
                     "merchant": os.getenv("ZIBAL_MERCHANT", "zibal"),
-                    "trackId": track_id,
+                    "trackId": payment.track_id,
                 },
                 timeout=5,
-            ).json()
-        except requests.RequestException as e:
+            )
+            data = response.json()
+        except (requests.RequestException, ValueError) as e:
             return Response(
                 {
-                    "detail": str(e),
+                    "detail": f"Gateway error: {str(e)}",
                 },
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        # Success payment
-        if response["result"] in [100, 201]:
-            payment.status = Payment.Status.SUCCESS
-            payment.raw_response = response
-            payment.save(update_fields=["status", "raw_response"])
+        with transaction.atomic():
+            try:
+                payment = Payment.objects.select_for_update().get(track_id=track_id)
+            except Payment.DoesNotExist:
+                return Response(
+                    {
+                        "detail": "Payment record not found",
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
-            order = payment.order
-            order.status = Order.Status.PAID
-            order.save(update_fields=["status"])
+            # Success verification response
+            if data["result"] in [100, 201]:
+                payment.mark_success(data)
+                return Response(
+                    {
+                        "detail": "Payment was successful",
+                        "track_id": track_id,
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
-            return Response(
-                {
-                    "result": "Payment was successful",
-                    "track_id": track_id,
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        # Payment failed
-        else:
-            payment.status = Payment.Status.FAILED
-            payment.raw_response = response
-            payment.save(update_fields=["status", "raw_response"])
-
-            return Response(
-                response,
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            # Verification failed
+            else:
+                payment.mark_failure(data)
+                return Response(
+                    {
+                        "detail": "Verification failed",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
 
 class PaymentHistoryAPIView(generics.ListAPIView):

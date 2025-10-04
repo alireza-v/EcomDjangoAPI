@@ -361,6 +361,7 @@ class Like(TimestampModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        verbose_name=_("کاربر"),
         related_name="user_likes",
     )
     product = models.ForeignKey(

@@ -56,7 +56,7 @@ def test_callback_without_track_id(auth_client):
     url = reverse("payment-callback")
     response = client.get(url)
     assert response.status_code == 400
-    assert response.data["detail"] == "trackId required"
+    assert response.data["detail"] == "track_id not provided"
 
 
 def test_callback_payment_not_found(auth_client):
@@ -69,7 +69,7 @@ def test_callback_payment_not_found(auth_client):
         },
     )
     assert response.status_code == 404
-    assert "No payment found" in response.data["detail"]
+    assert "No payment record found" in response.data["detail"]
 
 
 @patch("payments.views.requests.post")
@@ -95,7 +95,7 @@ def test_callback_success(
     order.refresh_from_db()
     assert payment.status == Payment.Status.SUCCESS
     assert sample_order.status == Order.Status.PAID
-    assert "success" in response.data["result"]
+    assert "Payment was successful" in response.data["detail"]
 
 
 @patch("payments.views.requests.post")

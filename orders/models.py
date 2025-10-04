@@ -2,7 +2,6 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
-from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from product.models import Product
@@ -20,6 +19,7 @@ class Order(TimestampModel):
         """
 
         PENDING = "pending", _("Pending")
+        EXPIRED = "expired", _("Expired")
         PAID = "paid", _("Paid")
         FAILED = "failed", _("Failed")
 

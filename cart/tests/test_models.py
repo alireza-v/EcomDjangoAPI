@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 from django.db import IntegrityError
 
@@ -7,11 +9,14 @@ from cart.models import CartItem
 @pytest.mark.parametrize("quantity", [1, 5, 10])
 def test_user_cart_setup(
     cart_item_factory,
-    sample_active_user,
+    auth_client,
     sample_products,
     quantity,
 ):
-    user = sample_active_user
+    """
+    User related cart tested with multiple values
+    """
+    _, user = auth_client
     product = sample_products["products"][0]
 
     cart_item = cart_item_factory(
@@ -20,7 +25,11 @@ def test_user_cart_setup(
         quantity=quantity,
     )
 
-    assert cart_item.subtotal == f"{product.price * quantity:,.0f}"
+    cart_sub = f"{cart_item.subtotal:,.0f}"
+    expected_sub = f"{Decimal(product.price * quantity):,.0f}"
+
+    assert cart_sub == expected_sub
+    assert isinstance(cart_item.subtotal, Decimal)
     assert cart_item.user == user
     assert CartItem.objects.filter(
         user=user,
