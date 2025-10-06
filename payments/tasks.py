@@ -1,6 +1,6 @@
 from celery import shared_task
 
-from payments.utils import expired_payments
+from .utils import expired_payments
 
 
 @shared_task

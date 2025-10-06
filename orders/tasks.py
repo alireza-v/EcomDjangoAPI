@@ -1,6 +1,6 @@
 from celery import shared_task
 
-from orders.utils import mark_pending_orders
+from .utils import mark_pending_orders
 
 
 @shared_task

@@ -96,7 +96,7 @@ def test_user_registration(
             "Account activated",
             True,
         ),
-        (lambda user: "Invalid token", 400, "Invalid activation link", False),
+        (lambda user: "Invalid token", 400, "Invalid credentials", False),
     ],
 )
 def test_user_activation(
@@ -123,7 +123,7 @@ def test_user_activation(
 
     assert response.status_code == code
     if code == 200:
-        assert response.data["result"] == result
+        assert response.data["detail"] == result
     else:
         assert response.data["error"] == result
 
@@ -142,26 +142,33 @@ def test_user_activation(
             "123",
             401,
             None,
-            "No active account found with the given credentials",
+            "Email or password is incorrect",
         ),
         (
             "example@email",
             "123",
             401,
             None,
-            "No active account found with the given credentials",
+            "Email or password is incorrect",
         ),
         (
             "example@email.com",
             "123",
             401,
             None,
-            "No active account found with the given credentials",
+            "Email or password is incorrect",
         ),
         ("example@email.com", "", 400, None, "This field may not be blank."),
     ],
 )
-def test_user_login(auth_client, email, password, code, keys, error):
+def test_user_login(
+    auth_client,
+    email,
+    password,
+    code,
+    keys,
+    error,
+):
     client, _ = auth_client
 
     response = client.post(

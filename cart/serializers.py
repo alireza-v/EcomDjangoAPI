@@ -2,11 +2,8 @@ from django.db import transaction
 from django.db.models import F
 from rest_framework import serializers
 
-from cart.models import (
-    CartItem,
-)
+from cart.models import CartItem
 from product.models import Product
-from product.serializers import BaseSerializer
 
 
 class CartSerializer(serializers.ModelSerializer):

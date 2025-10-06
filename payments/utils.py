@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
 
-from payments.models import Payment
+from .models import Payment
 
 
 @transaction.atomic

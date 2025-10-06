@@ -7,8 +7,9 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from cart.models import CartItem
-from orders.models import Order, OrderItem
 from product.models import Product
+
+from .models import Order, OrderItem
 
 
 @transaction.atomic

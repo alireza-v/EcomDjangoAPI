@@ -2,7 +2,7 @@ import django_filters
 from django.db.models import Q
 from django.utils import timezone
 
-from product.models import Product
+from .models import Product
 
 
 class ProductFilter(django_filters.FilterSet):

@@ -4,10 +4,10 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from orders.models import Order
-from users.models import TimestampModel
+from users.models import BaseModel
 
 
-class Payment(TimestampModel):
+class Payment(BaseModel):
     class Status(models.TextChoices):
         PENDING = "pending", _("Pending")
         EXPIRED = "expired", _("Expired")
@@ -17,45 +17,45 @@ class Payment(TimestampModel):
     order = models.ForeignKey(
         Order,
         on_delete=models.CASCADE,
-        verbose_name=_("سفارش"),
+        verbose_name=_("Order"),
         related_name="order_payments",
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        verbose_name=_("کاربر"),
+        verbose_name=_("User"),
         related_name="user_payments",
     )
     gateway = models.CharField(
-        verbose_name=_("درگاه پرداخت"),
+        verbose_name=_("Payment gateway"),
         max_length=100,
         default="zibal",
     )
     track_id = models.CharField(
-        verbose_name=_("شناسه پرداخت"),
+        verbose_name=_("TrackId"),
         max_length=100,
         unique=True,
         blank=True,
         null=True,
     )
     amount = models.DecimalField(
-        verbose_name=_("مبلغ"),
+        verbose_name=_("Amount"),
         max_digits=15,
         decimal_places=2,
     )
     status = models.CharField(
-        verbose_name=_("وضعیت"),
+        verbose_name=_("Status"),
         max_length=50,
         choices=Status.choices,
         default=Status.PENDING,
     )
     raw_response = models.JSONField(
-        verbose_name=_("پاسخ"),
+        verbose_name=_("Raw response"),
         null=True,
         blank=True,
     )
     paid_at = models.DateTimeField(
-        verbose_name=_("زمان پرداخت"),
+        verbose_name=_("Paid at"),
         blank=True,
         null=True,
     )

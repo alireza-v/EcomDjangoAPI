@@ -57,7 +57,7 @@ class CustomUserManager(BaseUserManager):
         )
 
 
-class TimestampModel(models.Model):
+class BaseModel(models.Model):
     """
     Timestamp tracking for all models
     """
@@ -75,14 +75,17 @@ class TimestampModel(models.Model):
         abstract = True
 
 
-class CustomUser(TimestampModel, AbstractUser):
+class CustomUser(BaseModel, AbstractUser):
     """
     Custom user model where email is used as the primary identifier
     """
 
-    email = models.EmailField(unique=True, verbose_name=_("آدرس ایمیل"))
+    email = models.EmailField(
+        unique=True,
+        verbose_name=_("Email address"),
+    )
     username = models.CharField(
-        verbose_name=_("نام کاربری"),
+        verbose_name=_("Username"),
         max_length=50,
         null=True,
         blank=True,

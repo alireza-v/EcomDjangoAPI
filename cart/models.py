@@ -6,10 +6,10 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from product.models import Product
-from users.models import TimestampModel
+from users.models import BaseModel
 
 
-class CartItem(TimestampModel):
+class CartItem(BaseModel):
     """
     User cart model to store items
         - user: User
@@ -19,18 +19,18 @@ class CartItem(TimestampModel):
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        verbose_name=_("کاربر"),
+        verbose_name=_("User"),
         on_delete=models.CASCADE,
         related_name="user_carts",
     )
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
-        verbose_name=_("محصول"),
+        verbose_name=_("Product"),
         related_name="product_carts",
     )
     quantity = models.PositiveIntegerField(
-        verbose_name=_("مقدار"),
+        verbose_name=_("Quantity"),
         default=1,
         validators=[MinValueValidator(1)],
     )

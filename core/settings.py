@@ -114,9 +114,6 @@ REST_FRAMEWORK = {
         "user": "50/min",
         "anon": "20/min",
     },
-    "DEFAULT_FILTER_BACKENDS": [
-        "django_filters.rest_framework.DjangoFilterBackend",
-    ],
     "EXCEPTION_HANDLER": "users.exceptions.custom_exception_handler",
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
 }
@@ -126,6 +123,7 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=2),
     "ALGORITHM": "HS256",
     "SIGNING_KEY": os.getenv("JWT_SECRET_KEY"),
+    "TOKEN_OBTAIN_SERIALIZER": "users.serializers.CustomTokenSerializer",
 }
 
 

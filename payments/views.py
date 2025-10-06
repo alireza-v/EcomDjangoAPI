@@ -11,8 +11,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from orders.models import Order
-from payments.models import Payment
-from payments.serializers import PaymentSerializer
+
+from .models import Payment
+from .serializers import PaymentSerializer
 
 load_dotenv()
 

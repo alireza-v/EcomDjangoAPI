@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator
 from django.db import models
@@ -8,29 +7,29 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
-from users.models import TimestampModel
+from users.models import BaseModel
 
 
-class Category(TimestampModel):
+class Category(BaseModel):
     title = models.CharField(
-        verbose_name=_("گروه"),
+        verbose_name=_("Title"),
         max_length=255,
     )
     parent = models.ForeignKey(
         "self",
-        verbose_name=_("زیر مجموعه"),
+        verbose_name=_("Parent"),
         on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="subcategories",
     )
     visit_count = models.PositiveIntegerField(
-        verbose_name=_("بازدید ها"),
+        verbose_name=_("Visit counts"),
         default=0,
         null=True,
     )
     slug = models.SlugField(
-        verbose_name=_("شناسه"),
+        verbose_name=_("Slug"),
         max_length=255,
         unique=True,
         null=True,
@@ -86,69 +85,54 @@ class Category(TimestampModel):
         super().save(*args, **kwargs)
 
 
-class FeatureName(TimestampModel):
-    name = models.CharField(
-        verbose_name=_("نام ویژگی"),
-        max_length=100,
-        unique=True,
-    )
-
-    class Meta:
-        verbose_name = "عنوان ویژگی"
-        verbose_name_plural = "ویژگی ها"
-
-    def __str__(self):
-        return self.name
-
-
-class Product(TimestampModel):
+class Product(BaseModel):
     title = models.CharField(
-        verbose_name=_("نام"),
+        verbose_name=_("Title"),
         max_length=255,
     )
     category = models.ForeignKey(
         Category,
-        verbose_name=_("گروه"),
+        verbose_name=_("Category"),
         on_delete=models.CASCADE,
         related_name="products",
     )
 
     price = models.DecimalField(
-        verbose_name=_("قیمت"),
+        verbose_name=_("Price"),
         max_digits=12,
         decimal_places=2,
         null=True,
         blank=True,
     )
     main_image = models.ImageField(
-        verbose_name=_("عکس رسمی"),
+        verbose_name=_("Main image"),
         upload_to="products/",
         null=True,
         blank=True,
     )
     description = models.TextField(
-        verbose_name=_("توضیحات"),
+        verbose_name=_("Description"),
         null=True,
         blank=True,
     )
     stock = models.PositiveIntegerField(
-        verbose_name=_("موجودی"),
+        verbose_name=_("Stock"),
         default=0,
     )
     visit_count = models.PositiveIntegerField(
-        _("بازدید ها"),
+        _("Visit counts"),
         default=0,
         null=True,
     )
     brand = models.CharField(
-        verbose_name=_("برند"),
+        verbose_name=_("Brand"),
         max_length=100,
         db_index=True,
         null=True,
         blank=True,
     )
     slug = models.SlugField(
-        _("شناسه"),
+        _("Slug"),
         max_length=255,
         unique=True,
         null=True,
@@ -211,21 +195,21 @@ class Product(TimestampModel):
         return self.title
 
 
-class Discount(TimestampModel):
+class Discount(BaseModel):
     "Discount model for products and categories"
 
     name = models.CharField(
-        verbose_name=_("نام"),
+        verbose_name=_("Name"),
         max_length=100,
     )
     percent = models.PositiveIntegerField(
-        verbose_name=_("درصد"),
+        verbose_name=_("Percent"),
         validators=[MaxValueValidator(100)],
     )
-    end_date = models.DateTimeField(verbose_name=_("تایخ انقضا"))
+    end_date = models.DateTimeField(verbose_name=_("End date"))
     product = models.ForeignKey(
         Product,
-        verbose_name=_("محصولات"),
+        verbose_name=_("Product"),
         on_delete=models.CASCADE,
         blank=True,
         null=True,
@@ -233,7 +217,7 @@ class Discount(TimestampModel):
     )
     category = models.ForeignKey(
         Category,
-        verbose_name=_("گروه ها"),
+        verbose_name=_("Category"),
         on_delete=models.CASCADE,
         blank=True,
         null=True,
@@ -251,140 +235,3 @@ class Discount(TimestampModel):
     class Meta:
         verbose_name = "تخفیف"
         verbose_name_plural = "تخفیف ها"
-
-
-class FeatureValue(TimestampModel):
-    product = models.ForeignKey(
-        Product,
-        verbose_name=_("محصولات"),
-        on_delete=models.CASCADE,
-        related_name="product_features",
-    )
-    feature = models.ForeignKey(
-        FeatureName,
-        verbose_name=_("عنوان ویژگی"),
-        on_delete=models.CASCADE,
-        related_name="feature_values",
-    )
-    value = models.CharField(
-        verbose_name=_("مقدار"),
-        max_length=100,
-    )
-
-    class Meta:
-        """
-        Constraint (uniqueness):
-            - product
-            - feature
-            - value
-        """
-
-        ordering = ["-id"]
-        verbose_name = "مقدار ویژگی "
-        verbose_name_plural = "مقادیر ویژگی ها"
-        constraints = [
-            models.UniqueConstraint(
-                fields=[
-                    "product",
-                    "feature",
-                    "value",
-                ],
-                name="unique_product_feature_value",
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.product.title} - {self.feature.name}: {self.value}"
-
-
-class ProductImage(TimestampModel):
-    product = models.ForeignKey(
-        Product,
-        verbose_name=_("محصول"),
-        on_delete=models.CASCADE,
-        related_name="images",
-    )
-    image = models.ImageField(
-        verbose_name=_("عکس"),
-        upload_to="products/gallery/",
-        null=True,
-        blank=True,
-    )
-
-    class Meta:
-        ordering = ["-created_at"]
-        verbose_name = "عکس ها"
-        verbose_name_plural = "عکس ها"
-
-    def __str__(self):
-        return f"{self.product.title} - {self.id}"
-
-
-class Feedback(TimestampModel):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name=_("کاربر"),
-        on_delete=models.CASCADE,
-        related_name="user_feedbacks",
-    )
-    product = models.ForeignKey(
-        Product,
-        verbose_name=_("محصول"),
-        on_delete=models.CASCADE,
-        related_name="product_feedbacks",
-    )
-    description = models.TextField(_("توضیحات"))
-    rating = models.PositiveSmallIntegerField(
-        _("امتیاز"),
-    )
-
-    class Meta:
-        """
-        Constraint (uniqueness):
-            - User may comment on product once
-        """
-
-        verbose_name = "بازخورد"
-        verbose_name_plural = "بازخورد ها"
-        ordering = ["-rating"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "product"], name="unique_user_product"
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.user.email}- {self.description[:10]}"
-
-
-class Like(TimestampModel):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        verbose_name=_("کاربر"),
-        related_name="user_likes",
-    )
-    product = models.ForeignKey(
-        Product,
-        verbose_name=_("محصول"),
-        on_delete=models.CASCADE,
-        related_name="product_likes",
-    )
-
-    class Meta:
-        """
-        constraint (uniqueness):
-            - Product likes by each user
-        """
-
-        verbose_name = "مورد علاقه"
-        verbose_name_plural = "مورد علاقه ها"
-
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "product"], name="unique_product_likes"
-            ),
-        ]
-
-    def __str__(self):
-        return self.product.title

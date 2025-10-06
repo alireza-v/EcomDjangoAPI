@@ -5,10 +5,10 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from product.models import Product
-from users.models import TimestampModel
+from users.models import BaseModel
 
 
-class Order(TimestampModel):
+class Order(BaseModel):
     """
     Store user order info
     """
@@ -25,29 +25,29 @@ class Order(TimestampModel):
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        verbose_name=_("کاربر"),
+        verbose_name=_("User"),
         on_delete=models.CASCADE,
         related_name="user_orders",
     )
     status = models.CharField(
-        verbose_name=_("وضعیت"),
+        verbose_name=_("Status"),
         choices=Status.choices,
         max_length=20,
         default=Status.PENDING,
         db_index=True,
     )
     shipping_address = models.TextField(
-        verbose_name=_("آدرس تحویل"),
+        verbose_name=_("Shipping address"),
     )
     total_amount = models.DecimalField(
-        verbose_name=_("مبلغ کل"),
+        verbose_name=_("Total amount"),
         max_digits=15,
         decimal_places=2,
         default=0,
         help_text="Snapshot of the total price at checkout time",
     )
     paid_at = models.DateTimeField(
-        verbose_name=_("زمان پرداخت"),
+        verbose_name=_("Paid at"),
         blank=True,
         null=True,
     )
@@ -71,7 +71,7 @@ class Order(TimestampModel):
         return f"Order by {self.user} - Status: {self.status.capitalize()}"
 
 
-class OrderItem(TimestampModel):
+class OrderItem(BaseModel):
     """
     Store detailed info about each order
     """
@@ -79,18 +79,18 @@ class OrderItem(TimestampModel):
     order = models.ForeignKey(
         Order,
         on_delete=models.CASCADE,
-        verbose_name=_("سفارش"),
+        verbose_name=_("Order"),
         related_name="order_items",
     )
     product = models.ForeignKey(
         Product,
         on_delete=models.PROTECT,
-        verbose_name=_("محصول"),
+        verbose_name=_("Product"),
         related_name="product_order_items",
     )
-    quantity = models.PositiveIntegerField(verbose_name="مقدار")
+    quantity = models.PositiveIntegerField(verbose_name="Quantity")
     price_at_purchase = models.DecimalField(
-        verbose_name=_("قیمت خرید"),
+        verbose_name=_("Price at purchase"),
         max_digits=12,
         decimal_places=2,
     )

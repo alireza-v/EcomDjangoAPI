@@ -14,16 +14,16 @@ from rest_framework import (
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from product.filters import ProductFilter
-from product.models import (
+from .filters import ProductFilter
+from .models import (
     Category,
     Feedback,
     Like,
     Product,
 )
-from product.ordering import CustomOrderingFilter
-from product.pagination import FeedbackPagination, ProductPagination
-from product.serializers import (
+from .ordering import CustomOrderingFilter
+from .pagination import FeedbackPagination, ProductPagination
+from .serializers import (
     CategorySerializer,
     FeedbackSerializer,
     LikeSerializer,
@@ -212,20 +212,20 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
+    @transaction.atomic
     def retrieve(self, request, *args, **kwargs):
         slug = kwargs.get("slug")
         try:
-            with transaction.atomic():
-                instance = (
-                    self.get_queryset()
-                    .select_for_update()
-                    .get(
-                        slug=slug,
-                    )
+            instance = (
+                self.get_queryset()
+                .select_for_update()
+                .get(
+                    slug=slug,
                 )
-                instance.visit_count = F("visit_count") + 1
-                instance.save(update_fields=["visit_count"])
-                instance.refresh_from_db()
+            )
+            instance.visit_count = F("visit_count") + 1
+            instance.save(update_fields=["visit_count"])
+            instance.refresh_from_db()
 
             serializer = self.get_serializer(instance)
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -275,7 +275,7 @@ class FeedbackListCreateAPIView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         """
-        Authentication required only for POST requests
+        Authentication required only for POST method
         """
         if self.request.method == "GET":
             return [permissions.AllowAny()]

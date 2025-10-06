@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from faker import Faker
 
-from product.models import (
+from ...models import (
     Category,
     Discount,
     FeatureName,
