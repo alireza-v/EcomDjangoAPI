@@ -2,15 +2,14 @@
 
 An E-commerce backend application built with [Django](https://docs.djangoproject.com/en/5.2/) and [Django REST Framework](https://www.django-rest-framework.org/).
 It provides key functionalities, including product catalog and search, shopping cart operations, order processing, payment gateway integration, and JWT-based authentication, all accessible via RESTful APIs.
-The codebase follows scalable, modular, and DRY design principles, making it an ideal foundation for building full-stack or headless commerce applications.
+
 
 ---
 ### Table of Contents
 - ⚙️ [Features](#features)
 - 🚀 [Installation](#installation-guide)
 - ✅ [Running Tests](#running-tests)
-- 🛠️ [Tech Stack](#tools--technologies)
-- 📚 [API Documentation](./docs/architecture.md)
+- 🛠️ [Tech Stack](#stacks)
 ---
 
 ###  Features
