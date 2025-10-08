@@ -52,6 +52,11 @@ class Order(BaseModel):
         null=True,
     )
 
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = _("Order")
+        verbose_name_plural = _("Orders")
+
     @property
     def total(self):
         """
@@ -61,11 +66,6 @@ class Order(BaseModel):
             Decimal(item.price_at_purchase) * item.quantity
             for item in self.order_items.all()
         )
-
-    class Meta:
-        ordering = ["-created_at"]
-        verbose_name = "سفارش"
-        verbose_name_plural = "سفارش ها"
 
     def __str__(self):
         return f"Order by {self.user} - Status: {self.status.capitalize()}"
@@ -88,7 +88,7 @@ class OrderItem(BaseModel):
         verbose_name=_("Product"),
         related_name="product_order_items",
     )
-    quantity = models.PositiveIntegerField(verbose_name="Quantity")
+    quantity = models.PositiveIntegerField(verbose_name=_("Quantity"))
     price_at_purchase = models.DecimalField(
         verbose_name=_("Price at purchase"),
         max_digits=12,
@@ -97,8 +97,8 @@ class OrderItem(BaseModel):
 
     class Meta:
         ordering = ["-created_at"]
-        verbose_name = "مقدار سفارش"
-        verbose_name_plural = "مقادیر سفارش"
+        verbose_name = _("Order item")
+        verbose_name_plural = _("Order items")
 
     def __str__(self):
         return (

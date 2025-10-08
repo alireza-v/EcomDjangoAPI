@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import warnings
 from datetime import timedelta
 from pathlib import Path
 
@@ -21,7 +22,6 @@ from drf_yasg.app_settings import swagger_settings
 
 load_dotenv()
 
-import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="drf_yasg.views")
 
@@ -89,9 +89,9 @@ SITE_NAME = os.getenv("SITE_NAME", "site-name")
 
 DJOSER = {
     "SEND_ACTIVATION_EMAIL": True,
-    "ACTIVATION_URL": "api/v1/auth/activate/{uid}/{token}/",
+    "ACTIVATION_URL": os.getenv("ACTIVATION_URL"),
     "USER_CREATE_PASSWORD_RETYPE": False,
-    "PASSWORD_RESET_CONFIRM_URL": "auth/users/reset_password_confirm/{uid}/{token}/",
+    "PASSWORD_RESET_CONFIRM_URL": os.getenv("PASSWORD_RESET_CONFIRM_URL"),
     "SEND_CONFIRMATION_EMAIL": True,
     "SERIALIZERS": {
         "user_create": "users.serializers.CustomUserCreateSerializer",

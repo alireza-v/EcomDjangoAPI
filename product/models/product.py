@@ -37,6 +37,19 @@ class Category(BaseModel):
         allow_unicode=True,
     )
 
+    class Meta:
+        """Unique title per category"""
+
+        ordering = ["-visit_count"]
+        verbose_name = _("Category")
+        verbose_name_plural = _("Categories")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["title", "parent"],
+                name="unique_category_per_parent",
+            ),
+        ]
+
     def get_breadcrumbs(self):
         """
         Return the breadcrumb path of the category from the top-level parent down to itself
@@ -47,17 +60,6 @@ class Category(BaseModel):
             breadcrumbs.insert(0, category)
             category = category.parent
         return breadcrumbs
-
-    class Meta:
-        ordering = ["-visit_count"]
-        verbose_name = _("گروه")
-        verbose_name_plural = _("گروه ها")
-        constraints = [
-            models.UniqueConstraint(
-                fields=["title", "parent"],
-                name="unique_category_per_parent",
-            ),
-        ]
 
     def validate_unique(self, exclude=None):
         """Respect uniqueness in admin"""
@@ -70,10 +72,11 @@ class Category(BaseModel):
             .exclude(pk=self.pk)
             .exists()
         ):
-            raise ValidationError({"title": "Category with this title already exist"})
-
-    def __str__(self):
-        return self.title
+            raise ValidationError(
+                {
+                    "title": "Category with this title already exists",
+                }
+            )
 
     def save(self, *args, **kwargs):
         """slug field populated from the title"""
@@ -83,6 +86,9 @@ class Category(BaseModel):
                 allow_unicode=True,
             )
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
 
 
 class Product(BaseModel):
@@ -132,7 +138,7 @@ class Product(BaseModel):
         blank=True,
     )
     slug = models.SlugField(
-        _("Slug"),
+        verbose_name=_("Slug"),
         max_length=255,
         unique=True,
         null=True,
@@ -148,8 +154,8 @@ class Product(BaseModel):
         """
 
         ordering = ["-visit_count", "-created_at"]
-        verbose_name = _("محصول")
-        verbose_name_plural = _("محصولات")
+        verbose_name = _("Product")
+        verbose_name_plural = _("Products")
         constraints = [
             models.UniqueConstraint(
                 fields=["title", "brand"],
@@ -196,7 +202,7 @@ class Product(BaseModel):
 
 
 class Discount(BaseModel):
-    "Discount model for products and categories"
+    "Discounts on parents and subcategories"
 
     name = models.CharField(
         verbose_name=_("Name"),
@@ -204,9 +210,16 @@ class Discount(BaseModel):
     )
     percent = models.PositiveIntegerField(
         verbose_name=_("Percent"),
-        validators=[MaxValueValidator(100)],
+        validators=[
+            MaxValueValidator(
+                limit_value=70,
+                message=_("Max percent value 70"),
+            )
+        ],
     )
-    end_date = models.DateTimeField(verbose_name=_("End date"))
+    end_date = models.DateTimeField(
+        verbose_name=_("End date"),
+    )
     product = models.ForeignKey(
         Product,
         verbose_name=_("Product"),
@@ -224,14 +237,16 @@ class Discount(BaseModel):
         related_name="category_discounts",
     )
 
-    def __str__(self):
-        return self.name
+    class Meta:
+        verbose_name = _("Discount")
+        verbose_name_plural = _("Discounts")
 
     def clean(self):
         super().clean()
         if self.end_date <= timezone.now():
-            raise ValidationError({"end_date": "End date must be in the future"})
+            raise ValidationError(
+                {"end_date": "End date must be in the future"},
+            )
 
-    class Meta:
-        verbose_name = "تخفیف"
-        verbose_name_plural = "تخفیف ها"
+    def __str__(self):
+        return self.name

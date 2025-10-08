@@ -20,7 +20,9 @@ class Feedback(BaseModel):
         on_delete=models.CASCADE,
         related_name="product_feedbacks",
     )
-    description = models.TextField(verbose_name=_("Description"))
+    description = models.TextField(
+        verbose_name=_("Description"),
+    )
     rating = models.PositiveSmallIntegerField(
         verbose_name=_("Rating"),
     )
@@ -28,12 +30,12 @@ class Feedback(BaseModel):
     class Meta:
         """
         Constraint (uniqueness):
-            - User may comment on product once
+            - User may comment on each product once
         """
 
-        verbose_name = "بازخورد"
-        verbose_name_plural = "بازخورد ها"
         ordering = ["-rating"]
+        verbose_name = _("Feedback")
+        verbose_name_plural = _("Feedbacks")
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "product"], name="unique_user_product"
@@ -59,13 +61,8 @@ class Like(BaseModel):
     )
 
     class Meta:
-        """
-        constraint (uniqueness):
-            - Product likes by each user
-        """
-
-        verbose_name = "مورد علاقه"
-        verbose_name_plural = "مورد علاقه ها"
+        verbose_name = _("Favorite")
+        verbose_name_plural = _("Favorites")
 
         constraints = [
             models.UniqueConstraint(

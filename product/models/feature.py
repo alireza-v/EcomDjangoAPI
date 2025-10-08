@@ -14,8 +14,8 @@ class FeatureName(BaseModel):
     )
 
     class Meta:
-        verbose_name = "عنوان ویژگی"
-        verbose_name_plural = "ویژگی ها"
+        verbose_name = _("Feature name")
+        verbose_name_plural = _("Feature names")
 
     def __str__(self):
         return self.name
@@ -48,8 +48,8 @@ class FeatureValue(BaseModel):
         """
 
         ordering = ["-id"]
-        verbose_name = "مقدار ویژگی "
-        verbose_name_plural = "مقادیر ویژگی ها"
+        verbose_name = _("Feature value")
+        verbose_name_plural = _("Feature values")
         constraints = [
             models.UniqueConstraint(
                 fields=[
@@ -81,8 +81,8 @@ class ProductImage(BaseModel):
 
     class Meta:
         ordering = ["-created_at"]
-        verbose_name = "عکس ها"
-        verbose_name_plural = "عکس ها"
+        verbose_name = _("Product image")
+        verbose_name_plural = _("Product images")
 
     def __str__(self):
         return f"{self.product.title} - {self.id}"

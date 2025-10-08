@@ -98,7 +98,7 @@ class CategorySerializer(BaseSerializer):
     subcategories = serializers.SerializerMethodField()
     breadcrumb = serializers.SerializerMethodField()
     has_discount = serializers.SerializerMethodField()
-    discount = serializers.SerializerMethodField()
+    discounts = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
@@ -106,7 +106,7 @@ class CategorySerializer(BaseSerializer):
             "title",
             "breadcrumb",
             "has_discount",
-            "discount",
+            "discounts",
             "products_preview",
             "subcategories",
         ]
@@ -123,20 +123,22 @@ class CategorySerializer(BaseSerializer):
 
     def get_products_preview(self, obj):
         """
-        Return sets of products for preview
-        e.g. top 5 most visited products in the category
+        Returns the top 5 most visited products in the given category and each one annotated with the average rating from their related feedbacks
         """
-        qs = obj.products.annotate(
+        product_avg_rating = obj.products.annotate(
             avg_rating=Avg("product_feedbacks__rating")
         ).order_by("-visit_count")[:5]
+
         return ProductSerializer(
-            qs,
+            product_avg_rating,
             many=True,
             context=self.context,
         ).data
 
     def get_subcategories(self, obj):
-        """Return subcategories of each category"""
+        """
+        Returns a serialized list of subcategories for the given category
+        """
         return CategorySerializer(
             obj.subcategories.all(),
             many=True,
@@ -144,22 +146,27 @@ class CategorySerializer(BaseSerializer):
         ).data
 
     def get_has_discount(self, obj):
-        "bool value for category discounts"
-        qs = obj.category_discounts.filter(end_date__gte=timezone.now())
-        return qs.exists()
+        """
+        Returns True if the category has any active discounts"
+        """
+        cat_discounts = obj.category_discounts.filter(end_date__gte=timezone.now())
 
-    def get_discount(self, obj):
-        active_discount = obj.category_discounts.filter(
-            end_date__gte=timezone.now()
-        ).first()
-        if active_discount:
-            return [
-                {
-                    "name": active_discount.name,
-                    "percent": active_discount.percent,
-                    "end_date": f"{active_discount.end_date:%Y-%m-%d %H:%M:%S}",
-                },
-            ]
+        return cat_discounts.exists()
+
+    def get_discounts(self, obj):
+        """
+        Returns list of active discounts
+        """
+        active_discounts = obj.category_discounts.filter(end_date__gte=timezone.now())
+
+        return [
+            {
+                "name": discount.name,
+                "percent": discount.percent,
+                "end_date": f"{discount.end_date:%Y-%m-%d %H:%M:%S}",
+            }
+            for discount in active_discounts
+        ]
 
 
 class ProductDetailSerializer(BaseSerializer):

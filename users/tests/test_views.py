@@ -8,7 +8,7 @@ from faker import Faker
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from conftest import RAW_PASSWORD
+from fixtures.auth_fixtures import RAW_PASSWORD
 
 User = get_user_model()
 faker = Faker()

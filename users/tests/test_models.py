@@ -1,4 +1,4 @@
-from conftest import RAW_PASSWORD
+from fixtures.auth_fixtures import RAW_PASSWORD
 
 
 def test_active_user(sample_active_user):

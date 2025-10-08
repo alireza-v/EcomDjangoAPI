@@ -37,8 +37,8 @@ class CartItem(BaseModel):
 
     class Meta:
         ordering = ["-created_at"]
-        verbose_name = "سبد خرید"
-        verbose_name_plural = "سبد خرید"
+        verbose_name = _("Cart list")
+        verbose_name_plural = _("Cart lists")
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "product"],

@@ -60,6 +60,11 @@ class Payment(BaseModel):
         null=True,
     )
 
+    class Meta:
+        ordering = ["-paid_at"]
+        verbose_name = _("Payment")
+        verbose_name_plural = _("Payments")
+
     def mark_success(self, response_data):
         """Mark payment as successful"""
         self.status = self.Status.SUCCESS

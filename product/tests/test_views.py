@@ -2,9 +2,11 @@ import random
 
 import pytest
 from django.urls import reverse
+from faker import Faker
 
-from conftest import faker
 from product.models import Feedback, Like
+
+faker = Faker()
 
 
 def test_products(

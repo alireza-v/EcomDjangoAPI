@@ -1,7 +1,10 @@
 [tool.isort]
-profile= "black"
-skip= ["env", "migrations", "__pycache__"]
-skip_gitignore= true
+profile = "black"
+skip = ["env", "migrations", "__pycache__"]
+skip_gitignore = true
 
 [tool.ruff]
-exclude=["env", "migrations", "__pycache__"]
+exclude = ["env", "migrations", "__pycache__"]
+
+
+

@@ -15,7 +15,9 @@ class CustomUserManager(BaseUserManager):
         **extra_fields,
     ):
         if not email:
-            raise ValueError("Email must be set")
+            raise ValueError(
+                _("Email must be set"),
+            )
 
         email = self.normalize_email(email)
         extra_fields.setdefault(
@@ -59,14 +61,16 @@ class CustomUserManager(BaseUserManager):
 
 class BaseModel(models.Model):
     """
-    Timestamp tracking for all models
+    Timestamp tracking for models
     """
 
     created_at = models.DateTimeField(
+        verbose_name=_("Created at"),
         auto_now_add=True,
         null=True,
     )
     updated_at = models.DateTimeField(
+        verbose_name=_("Updated at"),
         auto_now=True,
         null=True,
     )
@@ -77,7 +81,7 @@ class BaseModel(models.Model):
 
 class CustomUser(BaseModel, AbstractUser):
     """
-    Custom user model where email is used as the primary identifier
+    Custom user profile where email and password used as authenticators
     """
 
     email = models.EmailField(
